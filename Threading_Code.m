@@ -1,4 +1,4 @@
-% Threading Code - git version ?  
+% Threading Code  
 
 % Aims to use data from State_Space_4 (clustered active and inactive bouts)
     % To study transition dynamics 
