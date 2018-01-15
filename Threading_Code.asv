@@ -251,8 +251,6 @@ for er = 1:max(experiment_reps) % for each group of experiments
     end
 end
 
-clear er scrap legend_lines legend_cell set_token counter counter_2 s c g scrap a n r  
-
 %% Bout Shapes 
 
 counter = 1; 
