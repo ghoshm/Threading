@@ -348,8 +348,8 @@ clear b icons plots legend_lines legend_cols legend_cell
 % Constructing the grammar library 
 
 % Settings 
+sMax = max(idx_numComp_sorted{1,1}) + 1; % Maximum states + 1 (first new symbol) 
 nMax = 10; % Maximum n-grams to consider 
-sMax = max(idx_numComp_sorted{1,1}) + 1; % Maximum states + 1 (first new symbol)  
 
 % Allocate 
 grammar = cell(size(threads,1),2); % fish x test/control 
@@ -358,7 +358,8 @@ totSavings = zeros(size(threads,1),2); % fish x test/control
 gTermCell = cell(size(threads,1),2); % cell for storing n-grams
 uniqueSeqs = cell(1,2); % 1 x test/control 
 
-% Generate a Grammer for each fish + Controls
+% Generate a Grammer for each fish + Controls 
+% 16hours for 124 fish - 4days,3nights 
 tic
 parfor f = 1:find(i_experiment_reps == 1,1,'last') % For each fish size(threads,1)
     
@@ -377,7 +378,7 @@ end
 disp('Finished Compressing Fish'); 
 toc
 
-tic 
+tic % 8s for 124 fish 4days,3nights
 % Merge all the grammers and keep only unique elements 
 for tc = 1:2 % for real vs shuffled data 
     for f = 1:size(gTermCell,1) % for each fish
@@ -388,34 +389,83 @@ end
 disp('Merged all grammers'); 
 toc 
 
-tic 
+tic % 30s for 124 fish 4days,3nights 
 % Determine unique sequences from larger set
 [uniqueSeqs{1,1}, ~] = countUniqueRows(uniqueSeqs{1,1});
 [uniqueSeqs{1,2}, ~] = countUniqueRows(uniqueSeqs{1,2});
 disp('Determined unique sequences'); 
 toc 
 
+%% Grammar in Time - Parallel Version 
+% Allocate 
+gCount = cell(size(threads,1),2); % counts - fish x t/c 
+gFreq = cell(size(threads,1),2); % frequency - fish x t/c 
+for tc = 1:2 % for real/control data
+    for f = 1:size(threads,1) % for each fish     
+        gCount{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
+        gFreq{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
+    end
+end
+t_one = min(parameter_indicies{1,1}); 
+t_two = max(parameter_indicies{1,1})+1; 
+
+tic
+parfor f = 1:find(i_experiment_reps == 1,1,'last') % 1:size(threads,1) % for each fish
+    for tc = 1:2 % for real vs shuffled data
+        for i = 1:size(uniqueSeqs{1,tc},1) % For each sequence
+            % Find each sequence and count it's time windows
+            % Note that strfind(str,pattern) outputs the starting index of each
+            % occurrence of pattern in str. This is then used to index the
+            % time windows of these occurances, and then fed to histcounts
+            % which counts the occurances in each time window
+            gCount{f,tc}(i,:) = histcounts(threads{f,3,tc}...
+                (strfind(threads{f,1,tc}',uniqueSeqs{1,tc}{i,1})),...
+                t_one:t_two);
+            % Calculate frequency
+            if sum(gCount{f,tc}(i,:),2) > 0 % if fish (f) uses pattern (i)
+                gFreq{f,tc}(i,:) = gCount{f,tc}(i,:)./sum(gCount{f,tc}(i,:));
+                % calculate it's frequency in each time window
+            end
+        end
+    end
+    disp(horzcat('Finished Grammar in Time for fish ',num2str(f)));
+end
+disp('Overall Time Taken = '); 
+toc 
+
+clear tc f t_one t_two i 
+
 %% Grammar in Time
 % Allocate 
+tic
 gCount{1,1} = zeros(size(uniqueSeqs{1,1},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish 
 gCount{1,2} = zeros(size(uniqueSeqs{1,2},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish
 gFreq{1,1} = zeros(size(uniqueSeqs{1,1},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish
 gFreq{1,2} = zeros(size(uniqueSeqs{1,2},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish
 
-for tc = 1:2 % for real vs shuffled data
-    for f = 1:size(threads,1) % for each fish 
+for f = 1:find(i_experiment_reps == 1,1,'last') % 1:size(threads,1) % for each fish
+    for tc = 1:2 % for real vs shuffled data
         for i = 1:size(uniqueSeqs{1,tc},1) % For each sequence
             % Find each sequence and count it's time windows
+            % Note that strfind(str,pattern) outputs the starting index of each
+            % occurrence of pattern in str. This is then used to index the
+            % time windows of these occurances, and then fed to histcounts
+            % which counts the occurances in each time window
             gCount{1,tc}(i,:,f) = histcounts(threads{f,3,tc}...
                 (strfind(threads{f,1,tc}',uniqueSeqs{1,tc}{i,1})),...
                 min(parameter_indicies{1,1}):max(parameter_indicies{1,1})+1);
             % Calculate frequency
-            if sum(gCount{1,tc}(i,:,f),2) > 0
+            if sum(gCount{1,tc}(i,:,f),2) > 0 % if fish (f) uses pattern (i)
                 gFreq{1,tc}(i,:,f) = gCount{1,tc}(i,:,f)./sum(gCount{1,tc}(i,:,f));
+                % calculate it's frequency in each time window
             end
         end
     end
+    disp(horzcat('Finished Grammar in Time for fish ',num2str(f)));
 end
+toc 
+
+clear tc f i 
 
 %% Grammar in Time Figure  
 figure;
