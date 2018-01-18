@@ -397,11 +397,27 @@ disp('Determined unique sequences');
 toc 
 
 %% Grammar in Time - Parallel Version 
+% Single Conversion 
+for tc = 1:2 % for real/control data
+    for i = 1:size(uniqueSeqs{1,tc},1) % for each sequence
+        uniqueSeqs{1,tc}{i,1} = single(uniqueSeqs{1,tc}{i,1}); % convert to single
+    end
+    for f = 1:size(threads,1) % for each fish
+        for c = 1:size(threads,2) % for each column
+            threads{f,c,tc} = single(threads{f,c,tc});
+        end
+    end
+end
+
+% Use only what you need 
+threads_temp = threads; 
+threads = threads(1:find(i_experiment_reps == 1,1,'last'),:,:); 
+
 % Allocate 
 gCount = cell(size(threads,1),2); % counts - fish x t/c 
 gFreq = cell(size(threads,1),2); % frequency - fish x t/c 
 for tc = 1:2 % for real/control data
-    for f = 1:size(threads,1) % for each fish     
+    for f = 1:find(i_experiment_reps == 1,1,'last') % for each fish 1:size(threads,1)     
         gCount{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
         gFreq{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
     end
@@ -433,7 +449,7 @@ end
 disp('Overall Time Taken = '); 
 toc 
 
-clear tc f t_one t_two i 
+clear tc f t_one t_two i c 
 
 %% Grammar in Time
 % Allocate 
