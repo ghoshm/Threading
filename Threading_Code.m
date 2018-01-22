@@ -257,6 +257,34 @@ end
 
 clear er scrap legend_lines legend_cell set_token counter counter_2 s c g scrap a n r  
 
+%% Bouts in PCA Space 
+
+% Sample Equally from each cluster 
+sample_size = 1000; 
+sample = []; sample_tags = [];
+for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1})
+    sample = [sample ; datasample(score(idx_numComp_sorted{1,1} == c,1:2),sample_size,...
+        1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c))]; 
+    sample_tags = [sample_tags ; repmat(c,[sample_size,1])]; 
+end 
+
+% Calculate pdf 
+%[bandwidth,density,X,Y]=kde2d(sample);
+density = pdf(GMModels{1},sample); 
+
+% Scatter Plot 
+figure; cols = 1;
+for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1})
+    scatter3(sample(sample_tags==c,1),sample(sample_tags==c,2),...
+        density(sample_tags==c,1),150,...
+        'markerfacecolor',cmap_cluster{1,1}(cols,:),...
+        'markeredgecolor',cmap_cluster{1,1}(cols,:));
+    cols = cols + 1;
+    hold on 
+end
+
+clear c cols 
+
 %% Bout Shapes Data 
  
 % Cumulative fish tags 
@@ -380,6 +408,8 @@ parfor f = 1:find(i_experiment_reps == 1,1,'last') % For each fish size(threads,
 end
 disp('Finished Compressing Fish'); 
 toc
+
+%% Constructing a common Grammar 
 
 tic % 8s for 124 fish 4days,3nights
 % Merge all the grammers and keep only unique elements 
@@ -542,7 +572,9 @@ for tc = 1:2 % for real vs shuffled data
         counter = counter + 1;
     end
     
-    y_lims = ylim; % find top
+    if tc == 1 % use the same top for both plots 
+        y_lims = ylim; % find top
+    end 
     a = 1; night_start = first_night{1}; % Start counters
     for n = 1:size(nights_crop{1},2) % For each night
         r(a) = rectangle('Position',[(night_start-0.5) y_lims(1)...
@@ -552,15 +584,17 @@ for tc = 1:2 % for real vs shuffled data
         a = a + 1; night_start = night_start + 2; % Add to counters
     end
     
-    axis([0.5 7.5 0 0.75]); % hard coded 
+    axis([0.5 7.5 0 y_lims(2)]); % hard coded 
     box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
     xlabel('Time (Days/Nights)','Fontsize',32); % X Labels
     set(gca, 'XTick', []); % Turn off X-Ticks
     ylabel('Mean Frequency','Fontsize',32); % Y Labels
     
-    clear y_lims a night_start n r scrap counter
+    clear a night_start n r scrap counter
 end
  
+clear y_lims 
+
 %% Sequence Lengths 
 
 seq_lengths{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % tc - seqs x 1 
@@ -569,33 +603,59 @@ seq_lengths{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % tc - seqs x 1
 for tc = 1:2 % for real vs shuffled data
     
     for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-        seq_lengths{1,tc}(s,1) = size(uniqueSeqs{1,tc}{s,1},2);
+        seq_lengths{1,tc}(s,1) = size(uniqueSeqs{1,tc}{s,1},2); % find it's length
     end
     
 end
 
+clear tc s 
+
 %% Sequence Lengths Figure 
 figure; subplot(1,2,1); box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',12); % Format
-title('Data','Fontsize',18); hold on; 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
+title('Data','Fontsize',32); hold on; 
 histogram(seq_lengths{1},'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
-xlabel('Terminal Length','Fontsize',12); ylabel('Probability','Fontsize',12); % Y Labels
-axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.6])
+xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
+axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.55]) % hard coded 
 subplot(1,2,2); box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',12); % Format 
-title('Shuffled Data','Fontsize',18); hold on; 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format 
+title('Shuffled Data','Fontsize',32); hold on; 
 histogram(seq_lengths{2},'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
-xlabel('Terminal Length','Fontsize',12); ylabel('Probability','Fontsize',12); % Y Labels
-axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.6])
+xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
+axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.55])
+
+%% Construct Grammar Matrix  
+grammar_mat = nan(size(uniqueSeqs{1,1},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
+
+for s = 1:size(uniqueSeqs{1,1},1) % for each sequence 
+    grammar_mat(s,1:size(uniqueSeqs{1,1}{s,1},2)) = uniqueSeqs{1,1}{s,1}; % fill in sequence  
+end 
+
+%% Grammar Matrix Figure 
+figure; 
+grammar_mat_sorted = flip(sortrows(grammar_mat)); 
+imAlpha=ones(size(grammar_mat_sorted),'single'); imAlpha(isnan(grammar_mat_sorted))=0;
+imagesc(grammar_mat_sorted,'AlphaData',imAlpha); 
+colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+c = colorbar; c.Label.String = 'Cluster'; 
+xlabel('Position in Sequence','Fontsize',32); 
+ylabel('Sequence','Fontsize',32);
+
+clear grammar_mat_sorted c 
 
 %% Compressibility 
+% The compressibility of a sequence of uncompressed length l is given by the sum of the savings S 
+% at each iteration divided by l.
+
 compressibility = zeros(size(threads,1),2,'single'); % fish x t/c
 for f = 1:size(threads,1) % for each fish 
-    compressibility(f,:) = (totSavings(f,:)./size(threads{f,1,1},1))/...
-        size(unique(threads{f,1,1}),1);  
+    compressibility(f,:) = totSavings(f,:)./size(threads{f,1,1},1);
 end 
+
+clear f 
 
 %% Compressibility Figure 
 figure; hold on; set(gca,'FontName','Calibri');
@@ -603,30 +663,30 @@ plot(compressibility',...
     'color',cmap{1}(1,:)+(1-cmap{1}(1,:))*(1-(1/(5)^.5)),'linewidth',1.5);
 errorbar(nanmean(compressibility),...
     nanstd(compressibility),'color',cmap{1}(1,:),'linewidth',3); 
-box off; set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
+box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
 set(gca, 'XTick', [1 2]); % Turn off X-Ticks
 set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels 
-ylabel('Compressibility','Fontsize',12); % Y Labels
-axis([0.5 2.5 ylim]); 
+ylabel('Compressibility','Fontsize',32); % Y Labels
+axis([0.5 2.5 ylim]);
 
-%% "Common-ness" of Grammar 
+%% "Common-ness" of Grammar
 
-% Merge Count Matricies 
-gCount_merge = cell(1,2); % allocate 
+% Merge Count Matricies
+gCount_merge = cell(1,2); % allocate
 gCount_merge{1,1} = zeros(size(gCount{1,1},1),size(gCount{1,1},2),...
-    size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish 
+    size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
 gCount_merge{1,2} = zeros(size(gCount{1,2},1),size(gCount{1,2},2),...
     size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
 
-for tc = 1:2 % for data/control 
-    for f = 1:find(i_experiment_reps ==1,1,'last') % for each fish 
-        gCount_merge{1,tc}(:,:,f) = gCount{f,tc}; % fill data 
+for tc = 1:2 % for data/control
+    for f = 1:find(i_experiment_reps ==1,1,'last') % for each fish
+        gCount_merge{1,tc}(:,:,f) = gCount{f,tc}; % fill data
     end
 end
 
-    % How many fish utilise each grammar sequence (as a percentage) 
-uniqueSeqs_common{1,1} = nan(size(uniqueSeqs{1,1},1),1,'single'); 
-uniqueSeqs_common{1,2} = nan(size(uniqueSeqs{1,2},1),1,'single'); 
+% How many fish utilise each grammar sequence (as a percentage)
+uniqueSeqs_common{1,1} = nan(size(uniqueSeqs{1,1},1),1,'single');
+uniqueSeqs_common{1,2} = nan(size(uniqueSeqs{1,2},1),1,'single');
 
 for tc = 1:2 % for real vs shuffled data
     for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
@@ -635,22 +695,24 @@ for tc = 1:2 % for real vs shuffled data
     end
 end
 
+clear tc f s 
+
 %% Common-ness of Grammar Figure 
 figure; subplot(1,2,1); 
 box off; set(gca, 'Layer','top');
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',12); % Format
-title('Data','Fontsize',18); hold on;    
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
+title('Data','Fontsize',32); hold on;    
 histogram(uniqueSeqs_common{1,1},'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
-xlabel('Fish (%)','Fontsize',12); ylabel('Probability','Fontsize',12); % Axis Labels
-axis([0 100 0 0.3]); subplot(1,2,2); 
+xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
+axis([0 100 0 0.3]); subplot(1,2,2); % hard coded 
 box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',12); % Format
-title('Shuffled Data','Fontsize',18); hold on; 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
+title('Shuffled Data','Fontsize',32); hold on; 
 histogram(uniqueSeqs_common{1,2},'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
-xlabel('Fish (%)','Fontsize',12); ylabel('Probability','Fontsize',12); % Axis Labels
-axis([0 100 0 0.3]);
+xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
+axis([0 100 0 0.3]); % hard coded 
 
 %% Old Working 
 
