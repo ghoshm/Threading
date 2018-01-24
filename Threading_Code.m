@@ -169,6 +169,7 @@ ylabel('Fish ID','Fontsize',32);
 clear c x 
 
 %% Distribution in time Figure (Run this one figure @ a time) 
+
 all_states = double(max(idx_numComp_sorted{1,1})); % possible states
     % Note that subplot can't take single values
 ai_states(1:all_states) = 2; % specify if states are active (1) or inactive (2)
@@ -259,29 +260,37 @@ clear er scrap legend_lines legend_cell set_token counter counter_2 s c g scrap 
 
 %% Bouts in PCA Space 
 
+% Load Active GMModel 
+load(horzcat('D:\Behaviour\SleepWake\Re_Runs\Clustered_Data\New\Z_Score_Wake\1s_2000000d_1r_',...
+    num2str(numComp(1)),'k.mat'),'GMModels'); 
+
 % Sample Equally from each cluster 
-sample_size = 1000; 
-sample = []; sample_tags = [];
-for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1})
-    sample = [sample ; datasample(score(idx_numComp_sorted{1,1} == c,1:2),sample_size,...
-        1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c))]; 
-    sample_tags = [sample_tags ; repmat(c,[sample_size,1])]; 
+sample_size = 1000; % hard coded sample size 
+sample = []; sample_tags = []; % strcutures
+for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1}) % for each active cluster 
+    sample = [sample ; datasample(score(idx_numComp_sorted{1,1}==c,1:2),sample_size,...
+        1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c))]; % sample bouts  
+    sample_tags = [sample_tags ; repmat(c,[sample_size,1])]; % store cluster tags 
 end 
 
 % Calculate pdf 
-%[bandwidth,density,X,Y]=kde2d(sample);
 density = pdf(GMModels{1},sample); 
 
 % Scatter Plot 
 figure; cols = 1;
-for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1})
+for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1}) % for each active cluster 
     scatter3(sample(sample_tags==c,1),sample(sample_tags==c,2),...
-        density(sample_tags==c,1),150,...
+        density(sample_tags==c,1),90,...
         'markerfacecolor',cmap_cluster{1,1}(cols,:),...
-        'markeredgecolor',cmap_cluster{1,1}(cols,:));
+        'markeredgecolor','k','linewidth',0.01);
     cols = cols + 1;
-    hold on 
+    hold on; 
 end
+
+% Figure Settings 
+axis tight; box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+set(gca,'XTickLabels',[]); set(gca,'YTickLabels',[]); set(gca,'ZTickLabels',[]); grid off;  
+xlabel('PC 1','Fontsize',32); ylabel('PC 2','Fontsize',32); zlabel('Density','Fontsize',32); 
 
 clear c cols 
 
@@ -349,6 +358,7 @@ clear er fish_tags_cm f number counter c sample sample_tags sample_er ...
     sample_fish sample_et b fish et found 
 
 %% Bout Shapes Figure 
+
 figure; hold on; set(gca,'FontName','Calibri');
 for b = 1:size(bouts,2) % for each active bout type
     
@@ -409,9 +419,13 @@ end
 disp('Finished Compressing Fish'); 
 toc
 
+%% Load in Legion Data 
+clear compVec gTermCell grammar totSavings
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\Results_Final.mat')
+
 %% Constructing a common Grammar 
 
-tic % 8s for 124 fish 4days,3nights
+tic % 19s for 629 fish
 % Merge all the grammers and keep only unique elements 
 for tc = 1:2 % for real vs shuffled data 
     for f = 1:size(gTermCell,1) % for each fish
@@ -422,15 +436,122 @@ end
 disp('Merged all grammers'); 
 toc 
 
-tic % 30s for 124 fish 4days,3nights 
+tic % 106s for 629 fish 
 % Determine unique sequences from larger set
 [uniqueSeqs{1,1}, ~] = countUniqueRows(uniqueSeqs{1,1});
 [uniqueSeqs{1,2}, ~] = countUniqueRows(uniqueSeqs{1,2});
 disp('Determined unique sequences'); 
 toc 
 
+%% Remove Sequences with NaN (tagged as zeros) 
+
+for tc = 1:2 % for real vs shuffled data 
+    nan_locs = cellfun(@(s) ismember(0, s), uniqueSeqs{1,tc}); % find sequences with nans 
+    uniqueSeqs{1,tc}(nan_locs,:) = []; % remove these 
+end 
+
+clear tc nan_locs 
+
+%% Sequence Lengths 
+
+seq_lengths{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % tc - seqs x 1 
+seq_lengths{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % tc - seqs x 1 
+
+for tc = 1:2 % for real vs shuffled data
+    
+    for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
+        seq_lengths{1,tc}(s,1) = size(uniqueSeqs{1,tc}{s,1},2); % find it's length
+    end
+    
+end
+
+clear tc s 
+
+%% Sequence Lengths Figure 
+
+figure; subplot(1,2,1); box off; set(gca, 'Layer','top'); 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
+title('Data','Fontsize',32); hold on; 
+histogram(seq_lengths{1},'Normalization','probability','EdgeColor','none',...
+    'FaceColor',cmap{1}(1,:));
+xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
+axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65]) % hard coded 
+subplot(1,2,2); box off; set(gca, 'Layer','top'); 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format 
+title('Shuffled Data','Fontsize',32); hold on; 
+histogram(seq_lengths{2},'Normalization','probability','EdgeColor','none',...
+    'FaceColor',cmap{1}(1,:));
+xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
+axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65])
+
+%% Construct Grammar Matrix  
+
+grammar_mat = nan(size(uniqueSeqs{1,1},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
+
+for s = 1:size(uniqueSeqs{1,1},1) % for each sequence 
+    grammar_mat(s,1:size(uniqueSeqs{1,1}{s,1},2)) = uniqueSeqs{1,1}{s,1}; % fill in sequence  
+end 
+
+%% Grammar Matrix Figure 
+
+figure; 
+grammar_mat_sorted = flip(sortrows(grammar_mat)); % sort rows of grammar_mat  
+imAlpha=ones(size(grammar_mat_sorted),'single'); imAlpha(isnan(grammar_mat_sorted))=0; % find nan values 
+imagesc(grammar_mat_sorted,'AlphaData',imAlpha); % imagesc with nan values in white 
+colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+c = colorbar; c.Label.String = 'Cluster'; 
+xlabel('Position in Sequence','Fontsize',32); 
+ylabel('Sequence','Fontsize',32);
+
+clear grammar_mat_sorted c 
+
+%% Compressibility 
+% The compressibility of a sequence of uncompressed length l is given by the sum of the savings S 
+% at each iteration divided by l.
+
+compressibility = zeros(size(threads,1),2,'single'); % fish x t/c
+for f = 1:size(threads,1) % for each fish 
+    compressibility(f,:) = totSavings(f,:)./size(threads{f,1,1},1);
+end 
+
+clear f 
+
+%% Compressibility Figure 
+
+figure;
+for er = 1:max(experiment_reps) % for each group of experiments
+    set_token = find(experiment_reps == er,1,'first'); % settings
+    subplot(2,3,er); counter = 1; clear scrap; 
+    hold on; set(gca,'FontName','Calibri');
+    for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
+        plot([counter,counter+1],compressibility(i_experiment_reps == er & i_group_tags == g,:)',...
+            'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+        errorbar([counter,counter+1],nanmean(compressibility(i_experiment_reps == er & i_group_tags == g,:)),...
+            nanstd(compressibility(i_experiment_reps == er & i_group_tags == g,:)),...
+            'color',cmap{set_token}(g,:),'linewidth',3);
+        counter = counter + 2; % add to counter
+        
+        scrap(1,g) = min(min(compressibility(i_experiment_reps == er & i_group_tags == g,:))); 
+        scrap(2,g) = max(max(compressibility(i_experiment_reps == er & i_group_tags == g,:))); 
+    end
+    box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+    if er == 1
+        set(gca, 'XTick', [1 2]); % set X-ticks
+        set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels
+    else
+        set(gca,'XTickLabels',geno_list{set_token}.colheaders); % X Labels
+    end
+    ylabel('Compressibility','Fontsize',32); % Y Labels
+    axis([0.5 (max(i_group_tags(i_experiment_reps == er))*2)+.5 ...
+        (min(scrap(1,:)) - (min(scrap(1,:))*0.05)) (max(scrap(2,:)) + (max(scrap(2,:))*0.05))]);
+end
+
+clear er set_token g scrap counter 
+
 %% Grammar in Time - Parallel Version (75mins for 125 fish, 4days,3nights)
-% Single Conversion 
+
+% Convert data to singles 
 for tc = 1:2 % for real/control data
     for i = 1:size(uniqueSeqs{1,tc},1) % for each sequence
         uniqueSeqs{1,tc}{i,1} = single(uniqueSeqs{1,tc}{i,1}); % convert to single
@@ -442,15 +563,11 @@ for tc = 1:2 % for real/control data
     end
 end
 
-% Use only what you need (temp) 
-threads_temp = threads; % (temp)
-threads = threads(1:find(i_experiment_reps == 1,1,'last'),:,:); % temp 
-
 % Allocate 
 gCount = cell(size(threads,1),2); % counts - fish x t/c 
 gFreq = cell(size(threads,1),2); % frequency - fish x t/c 
 for tc = 1:2 % for real/control data
-    for f = 1:find(i_experiment_reps == 1,1,'last') % for each fish 1:size(threads,1)     
+    for f = 1:size(threads,1) % for each fish     
         gCount{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
         gFreq{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
     end
@@ -459,7 +576,7 @@ t_one = min(parameter_indicies{1,1}); % first time window
 t_two = max(parameter_indicies{1,1})+1; % 2nd time window + 1 
 
 tic
-parfor f = 1:find(i_experiment_reps == 1,1,'last') % 1:size(threads,1) % for each fish
+parfor f = 1:size(threads,1) % for each fish
     for tc = 1:2 % for real vs shuffled data
         for i = 1:size(uniqueSeqs{1,tc},1) % For each sequence
             % Find each sequence and count it's time windows
@@ -483,38 +600,6 @@ disp('Overall Time Taken = ');
 toc 
 
 clear tc f t_one t_two i c 
-
-%% Grammar in Time
-% Allocate 
-% tic
-% gCount{1,1} = zeros(size(uniqueSeqs{1,1},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish 
-% gCount{1,2} = zeros(size(uniqueSeqs{1,2},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish
-% gFreq{1,1} = zeros(size(uniqueSeqs{1,1},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish
-% gFreq{1,2} = zeros(size(uniqueSeqs{1,2},1),max(parameter_indicies{1,1}),size(threads,1),'single'); % t/c - uniqueSeqs x time windows x fish
-% 
-% for f = 1:find(i_experiment_reps == 1,1,'last') % 1:size(threads,1) % for each fish
-%     for tc = 1:2 % for real vs shuffled data
-%         for i = 1:size(uniqueSeqs{1,tc},1) % For each sequence
-%             % Find each sequence and count it's time windows
-%             % Note that strfind(str,pattern) outputs the starting index of each
-%             % occurrence of pattern in str. This is then used to index the
-%             % time windows of these occurances, and then fed to histcounts
-%             % which counts the occurances in each time window
-%             gCount{1,tc}(i,:,f) = histcounts(threads{f,3,tc}...
-%                 (strfind(threads{f,1,tc}',uniqueSeqs{1,tc}{i,1})),...
-%                 min(parameter_indicies{1,1}):max(parameter_indicies{1,1})+1);
-%             % Calculate frequency
-%             if sum(gCount{1,tc}(i,:,f),2) > 0 % if fish (f) uses pattern (i)
-%                 gFreq{1,tc}(i,:,f) = gCount{1,tc}(i,:,f)./sum(gCount{1,tc}(i,:,f));
-%                 % calculate it's frequency in each time window
-%             end
-%         end
-%     end
-%     disp(horzcat('Finished Grammar in Time for fish ',num2str(f)));
-% end
-% toc 
-% 
-% clear tc f i 
 
 %% Grammar in Time WT - dn score
 
@@ -595,109 +680,28 @@ end
  
 clear y_lims 
 
-%% Sequence Lengths 
-
-seq_lengths{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % tc - seqs x 1 
-seq_lengths{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % tc - seqs x 1 
-
-for tc = 1:2 % for real vs shuffled data
-    
-    for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-        seq_lengths{1,tc}(s,1) = size(uniqueSeqs{1,tc}{s,1},2); % find it's length
-    end
-    
-end
-
-clear tc s 
-
-%% Sequence Lengths Figure 
-figure; subplot(1,2,1); box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
-title('Data','Fontsize',32); hold on; 
-histogram(seq_lengths{1},'Normalization','probability','EdgeColor','none',...
-    'FaceColor',cmap{1}(1,:));
-xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
-axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.55]) % hard coded 
-subplot(1,2,2); box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format 
-title('Shuffled Data','Fontsize',32); hold on; 
-histogram(seq_lengths{2},'Normalization','probability','EdgeColor','none',...
-    'FaceColor',cmap{1}(1,:));
-xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
-axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.55])
-
-%% Construct Grammar Matrix  
-grammar_mat = nan(size(uniqueSeqs{1,1},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
-
-for s = 1:size(uniqueSeqs{1,1},1) % for each sequence 
-    grammar_mat(s,1:size(uniqueSeqs{1,1}{s,1},2)) = uniqueSeqs{1,1}{s,1}; % fill in sequence  
-end 
-
-%% Grammar Matrix Figure 
-figure; 
-grammar_mat_sorted = flip(sortrows(grammar_mat)); 
-imAlpha=ones(size(grammar_mat_sorted),'single'); imAlpha(isnan(grammar_mat_sorted))=0;
-imagesc(grammar_mat_sorted,'AlphaData',imAlpha); 
-colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
-set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-c = colorbar; c.Label.String = 'Cluster'; 
-xlabel('Position in Sequence','Fontsize',32); 
-ylabel('Sequence','Fontsize',32);
-
-clear grammar_mat_sorted c 
-
-%% Compressibility 
-% The compressibility of a sequence of uncompressed length l is given by the sum of the savings S 
-% at each iteration divided by l.
-
-compressibility = zeros(size(threads,1),2,'single'); % fish x t/c
-for f = 1:size(threads,1) % for each fish 
-    compressibility(f,:) = totSavings(f,:)./size(threads{f,1,1},1);
-end 
-
-clear f 
-
-%% Compressibility Figure 
-figure; hold on; set(gca,'FontName','Calibri');
-plot(compressibility',...
-    'color',cmap{1}(1,:)+(1-cmap{1}(1,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-errorbar(nanmean(compressibility),...
-    nanstd(compressibility),'color',cmap{1}(1,:),'linewidth',3); 
-box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-set(gca, 'XTick', [1 2]); % Turn off X-Ticks
-set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels 
-ylabel('Compressibility','Fontsize',32); % Y Labels
-axis([0.5 2.5 ylim]);
-
 %% "Common-ness" of Grammar
 
 % Merge Count Matricies
-gCount_merge = cell(1,2); % allocate
 gCount_merge{1,1} = zeros(size(gCount{1,1},1),size(gCount{1,1},2),...
     size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
-gCount_merge{1,2} = zeros(size(gCount{1,2},1),size(gCount{1,2},2),...
-    size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
 
-for tc = 1:2 % for data/control
-    for f = 1:find(i_experiment_reps ==1,1,'last') % for each fish
-        gCount_merge{1,tc}(:,:,f) = gCount{f,tc}; % fill data
-    end
+for f = 1:find(i_experiment_reps ==1,1,'last') % for each fish
+    gCount_merge{1,tc}(:,:,f) = gCount{f,tc}; % fill data
 end
 
 % How many fish utilise each grammar sequence (as a percentage)
 uniqueSeqs_common{1,1} = nan(size(uniqueSeqs{1,1},1),1,'single');
-uniqueSeqs_common{1,2} = nan(size(uniqueSeqs{1,2},1),1,'single');
 
-for tc = 1:2 % for real vs shuffled data
-    for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-        uniqueSeqs_common{1,tc}(s,1) = (size(find(sum(squeeze(gCount_merge{1,tc}(s,:,:)))>0),2)/...
-            size(gCount_merge{1,tc},3))*100;
-    end
+for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
+    uniqueSeqs_common{1,tc}(s,1) = (size(find(sum(squeeze(gCount_merge{1,tc}(s,:,:)))>0),2)/...
+        size(gCount_merge{1,tc},3))*100;
 end
 
-clear tc f s 
+clear tc f s
 
 %% Common-ness of Grammar Figure 
+
 figure; subplot(1,2,1); 
 box off; set(gca, 'Layer','top');
 set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
