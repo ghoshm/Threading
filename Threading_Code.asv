@@ -382,46 +382,47 @@ legend('boxoff'); set(icons(1:size(bouts,2)),'Fontsize',16) ; set(plots,'LineWid
 
 clear b icons plots legend_lines legend_cols legend_cell  
 
-%% Hierachical Sequences (should run on Legion) 
+%% Hierachical Sequences (Local Version) 
     %https://github.com/aexbrown/Behavioural_Syntax
     %http://www.sequitur.info/
 
 % Constructing the grammar library 
 
-% Settings 
-sMax = max(idx_numComp_sorted{1,1}) + 1; % Maximum states + 1 (first new symbol) 
-nMax = 10; % Maximum n-grams to consider 
-
-% Allocate 
-grammar = cell(size(threads,1),2); % fish x test/control 
-compVec = cell(size(threads,1),2); % fish x test/control  
-totSavings = zeros(size(threads,1),2); % fish x test/control 
-gTermCell = cell(size(threads,1),2); % cell for storing n-grams - fish x test/control 
-uniqueSeqs = cell(1,2); % 1 x test/control 
-
-% Generate a Grammer for each fish + Controls 
-% 16hours for 124 fish - 4days,3nights 
-tic
-parfor f = 1:find(i_experiment_reps == 1,1,'last') % For each fish size(threads,1)
-    
-    for tc = 1:2 % for real vs shuffled data
-        % Compress
-        [grammar{f,tc}, compVec{f,tc}, totSavings(f,tc)] = ...
-            compressSequenceNFast(threads{f,1,tc}',sMax,nMax);
-        
-        % Get terminal symbols
-        gTermCell{f,tc} = getGrammarTerminals(grammar{f,tc});
-    end
-    
-    % Report progress
-    disp(horzcat('Compressed Fish ',num2str(f)));
-end
-disp('Finished Compressing Fish'); 
-toc
+% % Settings 
+% sMax = max(idx_numComp_sorted{1,1}) + 1; % Maximum states + 1 (first new symbol) 
+% nMax = 10; % Maximum n-grams to consider 
+% 
+% % Allocate 
+% grammar = cell(size(threads,1),2); % fish x test/control 
+% compVec = cell(size(threads,1),2); % fish x test/control  
+% totSavings = zeros(size(threads,1),2); % fish x test/control 
+% gTermCell = cell(size(threads,1),2); % cell for storing n-grams - fish x test/control 
+% uniqueSeqs = cell(1,2); % 1 x test/control 
+% 
+% % Generate a Grammer for each fish + Controls 
+% % 16hours for 124 fish - 4days,3nights 
+% tic
+% parfor f = 1:find(i_experiment_reps == 1,1,'last') % For each fish size(threads,1)
+%     
+%     for tc = 1:2 % for real vs shuffled data
+%         % Compress
+%         [grammar{f,tc}, compVec{f,tc}, totSavings(f,tc)] = ...
+%             compressSequenceNFast(threads{f,1,tc}',sMax,nMax);
+%         
+%         % Get terminal symbols
+%         gTermCell{f,tc} = getGrammarTerminals(grammar{f,tc});
+%     end
+%     
+%     % Report progress
+%     disp(horzcat('Compressed Fish ',num2str(f)));
+% end
+% disp('Finished Compressing Fish'); 
+% toc
 
 %% Load in Legion Data 
+
 clear compVec gTermCell grammar totSavings
-load('D:\Behaviour\SleepWake\Re_Runs\Threading\Results_Final.mat')
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\Compression_Results_Final.mat')
 
 %% Constructing a common Grammar 
 
@@ -472,14 +473,14 @@ clear tc s
 figure; subplot(1,2,1); box off; set(gca, 'Layer','top'); 
 set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
 title('Data','Fontsize',32); hold on; 
-histogram(seq_lengths{1},'Normalization','probability','EdgeColor','none',...
+histogram(seq_lengths{1,1},'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
 xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
 axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65]) % hard coded 
 subplot(1,2,2); box off; set(gca, 'Layer','top'); 
 set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format 
 title('Shuffled Data','Fontsize',32); hold on; 
-histogram(seq_lengths{2},'Normalization','probability','EdgeColor','none',...
+histogram(seq_lengths{1,2},'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
 xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
 axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65])
@@ -508,7 +509,7 @@ clear grammar_mat_sorted c
 
 %% Compressibility 
 % The compressibility of a sequence of uncompressed length l is given by the sum of the savings S 
-% at each iteration divided by l.
+% at each iteration divided by l (Gomez-Marin et al.,2016) 
 
 compressibility = zeros(size(threads,1),2,'single'); % fish x t/c
 for f = 1:size(threads,1) % for each fish 
@@ -563,54 +564,60 @@ for tc = 1:2 % for real/control data
     end
 end
 
-% Allocate 
-gCount = cell(size(threads,1),2); % counts - fish x t/c 
-gFreq = cell(size(threads,1),2); % frequency - fish x t/c 
-for tc = 1:2 % for real/control data
-    for f = 1:find(i_experiment_reps == 1,1,'last') % for each fish 1:size(threads,1)     
-        gCount{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
-        gFreq{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
-    end
-end
-t_one = min(parameter_indicies{1,1}); % first time window 
-t_two = max(parameter_indicies{1,1})+1; % 2nd time window + 1 
+%% Local Version 
 
-tic
-parfor f = 1:find(i_experiment_reps == 1,1,'last') % 1:size(threads,1) % for each fish
-    for tc = 1:2 % for real vs shuffled data
-        for i = 1:size(uniqueSeqs{1,tc},1) % For each sequence
-            % Find each sequence and count it's time windows
-            % Note that strfind(str,pattern) outputs the starting index of each
-            % occurrence of pattern in str. This is then used to index the
-            % time windows of these occurances, and then fed to histcounts
-            % which counts the occurances in each time window
-            gCount{f,tc}(i,:) = histcounts(threads{f,3,tc}...
-                (strfind(threads{f,1,tc}',uniqueSeqs{1,tc}{i,1})),...
-                t_one:t_two);
-            % Calculate frequency
-            if sum(gCount{f,tc}(i,:),2) > 0 % if fish (f) uses pattern (i)
-                gFreq{f,tc}(i,:) = gCount{f,tc}(i,:)./sum(gCount{f,tc}(i,:));
-                % calculate it's frequency in each time window
-            end
-        end
-    end
-    disp(horzcat('Finished Grammar in Time for fish ',num2str(f)));
-end
-disp('Overall Time Taken = '); 
-toc 
+% gCount = cell(size(threads,1),2); % counts - fish x t/c 
+% gFreq = cell(size(threads,1),2); % frequency - fish x t/c 
+% for tc = 1:2 % for real/control data
+%     for f = 1:size(threads,1) % for each fish     
+%         gCount{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
+%         gFreq{f,tc} = zeros(size(uniqueSeqs{1,tc},1),max(parameter_indicies{1,1}),'single'); % {f,t/c} - uniqueSeqs x time windows 
+%     end
+% end
+% t_one = min(parameter_indicies{1,1}); % first time window 
+% t_two = max(parameter_indicies{1,1})+1; % 2nd time window + 1 
+% 
+% tic
+% parfor f = 1:size(threads,1) % for each fish
+%     for tc = 1:2 % for real vs shuffled data
+%         for i = 1:size(uniqueSeqs{1,tc},1) % For each sequence
+%             % Find each sequence and count it's time windows
+%             % Note that strfind(str,pattern) outputs the starting index of each
+%             % occurrence of pattern in str. This is then used to index the
+%             % time windows of these occurances, and then fed to histcounts
+%             % which counts the occurances in each time window
+%             gCount{f,tc}(i,:) = histcounts(threads{f,3,tc}...
+%                 (strfind(threads{f,1,tc}',uniqueSeqs{1,tc}{i,1})),...
+%                 t_one:t_two);
+%             % Calculate frequency
+%             if sum(gCount{f,tc}(i,:),2) > 0 % if fish (f) uses pattern (i)
+%                 gFreq{f,tc}(i,:) = gCount{f,tc}(i,:)./sum(gCount{f,tc}(i,:));
+%                 % calculate it's frequency in each time window
+%             end
+%         end
+%     end
+%     disp(horzcat('Finished Grammar in Time for fish ',num2str(f)));
+% end
+% disp('Overall Time Taken = '); 
+% toc 
+% 
+% clear tc f t_one t_two i c 
 
-clear tc f t_one t_two i c 
+%% Load Grammar Freqs From Legion 
 
-%% Grammar in Time WT - dn score
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\Grammar_Results_Final.mat',...
+    'gCount','gFreq')
+
+%% Grammar in Time - dn score (WT)
 
 gFreq_merge = cell(1,2); % allocate
 gFreq_merge{1,1} = zeros(size(gFreq{1,1},1),size(gFreq{1,1},2),...
-    size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
+    size(gFreq,1),'single'); % {t,c} - seqs x time windows x fish
 gFreq_merge{1,2} = zeros(size(gFreq{1,2},1),size(gFreq{1,2},2),...
-    size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
+    size(gFreq,1),'single'); % {t,c} - seqs x time windows x fish
 
 for tc = 1:2 % for data/control
-    for f = 1:find(i_experiment_reps ==1,1,'last') % for each fish
+    for f = 1:size(gFreq,1) % for each fish
         gFreq_merge{1,tc}(:,:,f) = gFreq{f,tc}; % fill data
     end
 end
@@ -622,101 +629,120 @@ dn_score{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % {t/c} - seqs x 1
 for tc = 1:2 % for data/control
     for i = 1:size(dn_score{1,tc},1) % for each sequence
         dn_score{1,tc}(i,1) = ...
-            sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),:),3)) - ...
-            sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),:),3));
+            sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),i_experiment_reps == 1),3)) - ...
+            sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),i_experiment_reps == 1),3));
     end
 end
 
 clear tc f i
 
-%% Grammar in Time WT Figure
+ %% Grammar in Time Figure
+% 
+% % Generate dn_colormap
+% colors_p = [linspace(cmap_2{1}(1,1),cmap_2{1}(2,1),20)',...
+%     linspace(cmap_2{1}(1,2),cmap_2{1}(2,2),20)',...
+%     linspace(cmap_2{1}(1,3),cmap_2{1}(2,3),20)'];
+% 
+% figure;
+% for tc = 1:2 % for real vs shuffled data
+%     subplot(1,2,tc); hold on; set(gca,'FontName','Calibri');
+%     if tc == 1 
+%         title('Data','Fontsize',32); 
+%     else 
+%         title('Shuffled Data','Fontsize',32); 
+%     end 
+%     
+%     scrap = nanmean(gFreq_merge{1,tc},3); % data 
+%     counter = 1; % start a counter
+%     for thrs = 1:-0.1:-1 % for each threshold (day to night)
+%         try
+%             plot(scrap(dn_score{1,tc} > (thrs-0.1) & dn_score{1,tc} <= thrs,:)',...
+%                 'color',colors_p(counter,:),'linewidth',0.1) % Note will skip any == -1.0
+%             % only really a problem if these exist 
+%         catch
+%         end
+%         counter = counter + 1;
+%     end
+%     
+%     if tc == 1 % use the same top for both plots 
+%         y_lims = ylim; % find top
+%     end 
+%     a = 1; night_start = first_night{1}; % Start counters
+%     for n = 1:size(nights_crop{1},2) % For each night
+%         r(a) = rectangle('Position',[(night_start-0.5) y_lims(1)...
+%             1 (y_lims(2)-y_lims(1))],...
+%             'FaceColor',night_color{1},'Edgecolor',[1 1 1]);
+%         uistack(r(a),'bottom'); % Send to back
+%         a = a + 1; night_start = night_start + 2; % Add to counters
+%     end
+%     
+%     axis([0.5 7.5 0 y_lims(2)]); % hard coded 
+%     box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+%     xlabel('Time (Days/Nights)','Fontsize',32); % X Labels
+%     set(gca, 'XTick', []); % Turn off X-Ticks
+%     ylabel('Mean Frequency','Fontsize',32); % Y Labels
+%     
+%     clear a night_start n r scrap counter
+% end
+%  
+% clear y_lims 
 
-% Generate dn_colormap
-colors_p = [linspace(cmap_2{1}(1,1),cmap_2{1}(2,1),20)',...
-    linspace(cmap_2{1}(1,2),cmap_2{1}(2,2),20)',...
-    linspace(cmap_2{1}(1,3),cmap_2{1}(2,3),20)'];
+%% Grammar in time - Example Sequences  
 
-figure;
-for tc = 1:2 % for real vs shuffled data
-    subplot(1,2,tc); hold on; set(gca,'FontName','Calibri');
-    if tc == 1 
-        title('Data','Fontsize',32); 
-    else 
-        title('Shuffled Data','Fontsize',32); 
+exampleSeqs(1) = find(dn_score{1,1} == max(dn_score{1,1})); % find most day like sequence 
+exampleSeqs(2) = find(dn_score{1,1} == min(dn_score{1,1})); % find most night like sequence  
+
+% randomly choose a fish who uses both sequences 
+exampleFish = datasample(find(sum(squeeze(gFreq_merge{1,1}(exampleSeqs(1),:,i_experiment_reps == 1))) == 1 & ...
+    sum(squeeze(gFreq_merge{1,1}(exampleSeqs(2),:,i_experiment_reps == 1))) == 1),1,'replace',false); 
+
+% Figure 
+figure; cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; 
+for e = 1:size(exampleSeqs,2) % for each example sequence 
+    subplot(2,1,e);     
+    Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{exampleSeqs(e),1}),...
+        1,'replace',false); 
+    Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
+        threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{exampleSeqs(e),1},2)-1),2); 
+    Rlocs = Rlocs + offset(1,i_experiment_tags(exampleFish)); 
+    
+    imagesc(repmat(states{1,1}(exampleFish,Rlocs),[max(raw_data{1,1}(exampleFish,Rlocs)),1]));
+    hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');  
+    plot(raw_data{1,1}(exampleFish,Rlocs),'k','linewidth',3); hold on; 
+    set(gca,'XTickLabels',xticks/fps{1})
+    box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+    if e == size(exampleSeqs,2)
+    xlabel('Time (Seconds)'); 
     end 
-    
-    scrap = nanmean(gFreq_merge{1,tc},3); % data 
-    counter = 1; % start a counter
-    for thrs = 1:-0.1:-1 % for each threshold (day to night)
-        try
-            plot(scrap(dn_score{1,tc} > (thrs-0.1) & dn_score{1,tc} <= thrs,:)',...
-                'color',colors_p(counter,:),'linewidth',0.1) % Note will skip any == -1.0
-            % only really a problem if these exist 
-        catch
-        end
-        counter = counter + 1;
-    end
-    
-    if tc == 1 % use the same top for both plots 
-        y_lims = ylim; % find top
-    end 
-    a = 1; night_start = first_night{1}; % Start counters
-    for n = 1:size(nights_crop{1},2) % For each night
-        r(a) = rectangle('Position',[(night_start-0.5) y_lims(1)...
-            1 (y_lims(2)-y_lims(1))],...
-            'FaceColor',night_color{1},'Edgecolor',[1 1 1]);
-        uistack(r(a),'bottom'); % Send to back
-        a = a + 1; night_start = night_start + 2; % Add to counters
-    end
-    
-    axis([0.5 7.5 0 y_lims(2)]); % hard coded 
-    box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-    xlabel('Time (Days/Nights)','Fontsize',32); % X Labels
-    set(gca, 'XTick', []); % Turn off X-Ticks
-    ylabel('Mean Frequency','Fontsize',32); % Y Labels
-    
-    clear a night_start n r scrap counter
-end
- 
-clear y_lims 
+    ylabel('Delta Px'); 
+    title(horzcat('dn Score = ',num2str(dn_score{1,1}(exampleSeqs(e),1)))); 
+end 
+
+clear exampleFish 
 
 %% "Common-ness" of Grammar
 
-% Merge Count Matricies
-gCount_merge{1,1} = zeros(size(gCount{1,1},1),size(gCount{1,1},2),...
-    size(find(i_experiment_reps == 1),1),'single'); % {t,c} - seqs x time windows x fish
+% Logical Table 
+common_table = zeros(size(uniqueSeqs{1,1},1),size(gFreq,1),'single'); 
 
-for f = 1:find(i_experiment_reps ==1,1,'last') % for each fish
-    gCount_merge{1,tc}(:,:,f) = gCount{f,tc}; % fill data
-end
-
-% How many fish utilise each grammar sequence (as a percentage)
-uniqueSeqs_common{1,1} = nan(size(uniqueSeqs{1,1},1),1,'single');
-
-for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-    uniqueSeqs_common{1,tc}(s,1) = (size(find(sum(squeeze(gCount_merge{1,tc}(s,:,:)))>0),2)/...
-        size(gCount_merge{1,tc},3))*100;
-end
-
-clear tc f s
+for s = 1:size(common_table,1) % for each sequence 
+    common_table(s,:) = sum(squeeze(gFreq_merge{1,1}(s,:,:))); 
+end 
 
 %% Common-ness of Grammar Figure 
 
-figure; subplot(1,2,1); 
-box off; set(gca, 'Layer','top');
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
-title('Data','Fontsize',32); hold on;    
-histogram(uniqueSeqs_common{1,1},'Normalization','probability','EdgeColor','none',...
+figure; 
+box off; set(gca, 'Layer','top'); hold on; 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format   
+histogram((sum(common_table,2)/size(common_table,2))*100,'Normalization','probability','EdgeColor','none',...
     'FaceColor',cmap{1}(1,:));
 xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
-axis([0 100 0 0.3]); subplot(1,2,2); % hard coded 
-box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
-title('Shuffled Data','Fontsize',32); hold on; 
-histogram(uniqueSeqs_common{1,2},'Normalization','probability','EdgeColor','none',...
-    'FaceColor',cmap{1}(1,:));
-xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
-axis([0 100 0 0.3]); % hard coded 
+axis([0 100 0 0.05]); 
+
+%% Statistical Comparisons of Frequencies 
+    
+nan_locs = cellfun(@(s) ismember(9, s), uniqueSeqs{1,tc}); % find sequences with nans 
+er = 5; c = 9; 
 
 %% Old Working 
 
