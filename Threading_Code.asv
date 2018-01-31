@@ -354,7 +354,7 @@ for c = find(ai_states == 1) % for each active bout type
     counter = counter + 1; % counts active clusters 
 end
 
-clear er fish_tags_cm f number counter c sample sample_tags sample_er ...
+clear er f number counter c sample sample_tags sample_er ...
     sample_fish sample_et b fish et found 
 
 %% Bout Shapes Figure 
@@ -519,6 +519,9 @@ for f = 1:size(threads,1) % for each fish
 end 
 
 clear f 
+
+%% Compressibility N-Way Anova 
+
 
 %% Compressibility Figure 
 
@@ -691,39 +694,6 @@ clear tc f i gFreq gCount
 %  
 % clear y_lims 
 
-%% Grammar in time - Example Sequences  
-
-exampleSeqs(1) = find(dn_score{1,1} == max(dn_score{1,1})); % find most day like sequence 
-exampleSeqs(2) = find(dn_score{1,1} == min(dn_score{1,1})); % find most night like sequence  
-
-% randomly choose a fish who uses both sequences 
-exampleFish = datasample(find(sum(squeeze(gFreq_merge{1,1}(exampleSeqs(1),:,i_experiment_reps == 1))) == 1 & ...
-    sum(squeeze(gFreq_merge{1,1}(exampleSeqs(2),:,i_experiment_reps == 1))) == 1),1,'replace',false); 
-
-% Figure 
-figure; cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; 
-for e = 1:size(exampleSeqs,2) % for each example sequence 
-    subplot(2,1,e);     
-    Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{exampleSeqs(e),1}),...
-        1,'replace',false); 
-    Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
-        threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{exampleSeqs(e),1},2)-1),2); 
-    Rlocs = Rlocs + offset(1,i_experiment_tags(exampleFish)); 
-    
-    imagesc(repmat(states{1,1}(exampleFish,Rlocs),[max(raw_data{1,1}(exampleFish,Rlocs)),1]));
-    hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');  
-    plot(raw_data{1,1}(exampleFish,Rlocs),'k','linewidth',3); hold on; 
-    set(gca,'XTickLabels',xticks/fps{1})
-    box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-    if e == size(exampleSeqs,2)
-    xlabel('Time (Seconds)'); 
-    end 
-    ylabel('Delta Px'); 
-    title(horzcat('dn Score = ',num2str(dn_score{1,1}(exampleSeqs(e),1)))); 
-end 
-
-clear exampleFish 
-
 %% "Common-ness" of Grammar
 
 % Logical Table 
@@ -733,7 +703,7 @@ for s = 1:size(common_table,1) % for each sequence
     common_table(s,:) = sum(squeeze(gFreq_merge{1,1}(s,:,:))); 
 end 
 
-%% Common-ness of Grammar Figure 
+%% Common-ness of Grammar Figures 
 
 figure; 
 box off; set(gca, 'Layer','top'); hold on; 
@@ -742,6 +712,52 @@ histogram((sum(common_table,2)/size(common_table,2))*100,'Normalization','probab
     'FaceColor',cmap{1}(1,:));
 xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
 axis([0 100 0 0.05]); 
+
+% figure; 
+% scrap = flip(sortrows(grammar_mat(sum(common_table,2) == max(sum(common_table,2)),:))); % sort rows   
+% imAlpha=ones(size(scrap),'single'); imAlpha(isnan(scrap))=0; % find nan values 
+% imagesc(scrap,'AlphaData',imAlpha); % imagesc with nan values in white 
+% colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
+% set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+% c = colorbar; c.Label.String = 'Cluster'; 
+% xlabel('Position in Sequence','Fontsize',32); 
+% ylabel('Sequence','Fontsize',32);
+
+clear scrap c 
+
+%% Grammar in time - WT Example Sequences  
+comps = 3; clear exampleSeqs scrap; % number of comparisons to show
+[~,exampleSeqs(1:comps)] = maxk(dn_score{1,1},comps); % find most day like sequence 
+[~,scrap] = mink(dn_score{1,1},comps); % find most day like sequence 
+exampleSeqs = [exampleSeqs flip(scrap)']; clear scrap; 
+
+% randomly choose a fish who all both sequences 
+exampleFish = datasample(find(sum(common_table(exampleSeqs,i_experiment_reps == 1))==...
+    size(exampleSeqs,2)),1,'replace',false); 
+
+% Figure 
+figure; cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; 
+for e = 1:size(exampleSeqs,2) % for each example sequence 
+    subplot(2,comps,e);     
+    Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{exampleSeqs(e),1}),...
+        1,'replace',false); 
+    Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
+        threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{exampleSeqs(e),1},2)-1),2); 
+    Rlocs = Rlocs + offset(1,i_experiment_tags(exampleFish)); 
+    
+    imagesc([1,size(Rlocs,2)],[0,max(raw_data{1,1}(exampleFish,Rlocs))],...
+        repmat(states{1,1}(exampleFish,Rlocs),[max(raw_data{1,1}(exampleFish,Rlocs)),1]));
+    hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');  
+    plot(raw_data{1,1}(exampleFish,Rlocs),'k','linewidth',3); hold on; 
+    axis([1 size(Rlocs,2) 0 (max(raw_data{1,1}(exampleFish,Rlocs)) + 0.5)]);
+    set(gca,'XTickLabels',xticks/fps{1})
+    box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
+    xlabel('Time (Seconds)'); 
+    ylabel('Delta Px'); 
+    title(horzcat('dn Score = ',num2str(dn_score{1,1}(exampleSeqs(e),1)))); 
+end 
+
+clear exampleFish 
 
 %% Statistical Comparisons of Counts 
 
@@ -793,511 +809,100 @@ end
 
 %% Correct P-values for multiple comparisons 
 
-%% Grammar Comparison Figure 
+%% Grammar Comparison Figure
 
-% Settings 
-comps = 5; % Set the number of sequences to show 
+% Settings
+comps = 5; % Set the number of sequences to show
+cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}];
 
 for er = 1:max(experiment_reps) % for each group of experiments
-    figure; counter = 1; clear scrap;
+    figure; clear scrap; 
+    counter = 1; % counts subplots
     set_token = find(experiment_reps == er,1,'first'); % settings
     
-    % Find the top comp significant sequences 
-    [~,comps_v(:,1)] = mink(twa.gs{1,er}(:,1),comps);
-    [~,comps_v(:,2)] = mink(twa.gs{1,er}(:,4),comps); 
+    % Find the top comp significant sequences
+    [~,comps_v(:,1)] = mink(twa.gs{1,er}(:,2),comps);
     
-    subplot(2,5,counter); hold on; set(gca,'FontName','Calibri');
-    for c = 1:size(comps_v,2) % for each variable
-        for s = comps_v(:,c)' % for each sequence 
-            for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
-                plot([counter,counter+1],squeezegCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                    i_experiment_reps == er & i_group_tags == g),...
-                    'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-                errorbar([counter,counter+1],nanmean(compressibility(i_experiment_reps == er & i_group_tags == g,:)),...
-                    nanstd(compressibility(i_experiment_reps == er & i_group_tags == g,:)),...
-                    'color',cmap{set_token}(g,:),'linewidth',3);
-                counter = counter + 2; % add to counter
-                
-                scrap(1,g) = min(min(compressibility(i_experiment_reps == er & i_group_tags == g,:)));
-                scrap(2,g) = max(max(compressibility(i_experiment_reps == er & i_group_tags == g,:)));
-            end
-    box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-    if er == 1
-        set(gca, 'XTick', [1 2]); % set X-ticks
-        set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels
-    else
-        set(gca,'XTickLabels',geno_list{set_token}.colheaders); % X Labels
-    end
-    ylabel('Compressibility','Fontsize',32); % Y Labels
-    axis([0.5 (max(i_group_tags(i_experiment_reps == er))*2)+.5 ...
-        (min(scrap(1,:)) - (min(scrap(1,:))*0.05)) (max(scrap(2,:)) + (max(scrap(2,:))*0.05))]);
+    for s = comps_v(:,1)' % for each sequence
+        
+        % Plot Lines
+        subplot(2,5,counter); hold on; set(gca,'FontName','Calibri');
+        for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
+%             plot(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+%                 i_experiment_reps == er & i_group_tags == g)),...
+%                 'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+            errorbar(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g)),2),...
+                nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g))'),...
+                'color',cmap{set_token}(g,:),'linewidth',3);
+                        
+            scrap(1,g) = min(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g)),2)' - ...
+                nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g))'));
+            scrap(2,g) = max(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g)),2)' + ...
+                nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g))'));
+        end
+        
+        % Add night patches
+        y_lims = [(min(scrap(1,:)) - min(scrap(2,:))*0.05) ...
+            (max(scrap(2,:)) + min(scrap(2,:))*0.05)]; % Add a bit of space either side
+        
+        a = 1; night_start = first_night{set_token}; % Start counters
+        for n = 1:size(nights{set_token},2) % For each night
+            r(a) = rectangle('Position',[(night_start-0.5) y_lims(1)...
+                1 (y_lims(2)-y_lims(1))],...
+                'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
+            uistack(r(a),'bottom'); % Send to back
+            a = a + 1; night_start = night_start + 2; % Add to counters
+        end
+    
+        % Figure Formatting 
+        axis([0.5 size([days_crop{set_token}(days{set_token}) nights_crop{set_token}(nights{set_token})],2)+0.5 ...
+            y_lims]); % Set axis
+        box off; set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
+        xlabel('Time (Days/Nights)','Fontsize',12); % X Labels
+        set(gca, 'XTick', []); % Turn off X-Ticks
+        ylabel('Sequence Counts','Fontsize',12); % Y Labels
+        
+        % Plot Sequence - from randomly chosen fish
+        subplot(2,5,counter + comps); hold on; set(gca,'FontName','Calibri');
+        if er == 1
+            exampleFish = datasample(find(sum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
+                1,'replace',false);
+        else 
+            exampleFish = datasample(find(sum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
+                1,'replace',false) + fish_tags_cm(er - 1);
+        end   
+        Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{s,1}),...
+            1,'replace',false);
+        Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
+            threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{s,1},2)-1),2);
+        Rlocs = Rlocs + offset(er,(i_experiment_tags(exampleFish) - ... 
+            (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1)));
+        if er ~= 1
+        exampleFish = exampleFish - fish_tags_cm(er - 1); 
         end 
-    end 
+        imagesc([1,size(raw_data{er,1}(exampleFish,Rlocs),2)],...
+            [0,max(raw_data{er,1}(exampleFish,Rlocs))],...
+            repmat(states{er,1}(exampleFish,Rlocs),[max(raw_data{er,1}(exampleFish,Rlocs)),1]));
+        hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');
+        plot(raw_data{er,1}(exampleFish,Rlocs),'k','linewidth',3); hold on;
+        
+        % Figure Formatting 
+        axis([1 size(raw_data{er,1}(exampleFish,Rlocs),2) 0 max(raw_data{er,1}(exampleFish,Rlocs))]) 
+        set(gca,'XTickLabels',xticks/fps{1})
+        box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
+        xlabel('Time (Seconds)','FontSize',12);
+        ylabel('Delta Px','FontSize',12);
+       
+        counter = counter + 1; % add to counter
+
+    end
+    
 end
 
-clear er set_token g scrap counter 
-
-%% Old Working 
-
-% %% Bout Features Figure 
-% figure; 
-% 
-% % Active 
-% subplot(1,2,1); title('Active Bout Features'); 
-% a = find(states(2,:) == 13,1,'last'); % Hard chosen bout 
-% hold on; clear scrap; 
-% scrap = raw_data(2,a-7:a+4); 
-% plot(scrap,'color',cmap(1,:),'linewidth',3); 
-% scatter(7,max(scrap),72,'k','filled'); 
-% text(7.5,double(max(scrap)),'Maximum','Fontsize',16); 
-% scatter(8,min(scrap(scrap>0)),72,'k','filled'); 
-% text(8.5,double(min(scrap(scrap>0))),'Minimum','Fontsize',16); 
-% plot([6 8], [mean(scrap(scrap > 0)) mean(scrap(scrap > 0))],'-k',...
-%     'linewidth',3); 
-% plot([6 6],[mean(scrap(scrap > 0))-0.5 mean(scrap(scrap > 0))+0.5],'k',...
-%     'linewidth',3); 
-% plot([8 8],[mean(scrap(scrap > 0))-0.5 mean(scrap(scrap > 0))+0.5],'k',...
-%     'linewidth',3); 
-% text(8.5,10.5,{'Length','Mean','Variance','Total'},'Fontsize',16); 
-% set(gca,'Fontsize',16); 
-% axis([1 12 0 15.5]); 
-% xticks(1:2:12); 
-% set(gca,'XTickLabel',{(1:2:12)/fps}); 
-% xlabel('Time (seconds)'); 
-% ylabel('Delta Px (a.u)'); 
-% 
-% % Inactive 
-% subplot(1,2,2); hold on; title('Inactive Bout Features'); set(gca,'Fontsize',16);  
-% a = find(states(2,:) == 2,1,'last'); % Hard chosen bout 
-% hold on; clear scrap;
-% scrap = raw_data(2,a-18:a+1);
-% plot(scrap,'color',cmap(1,:),'linewidth',3); 
-% axis([1 20 ylim]); 
-% plot([2 19],[7 7],'-k','linewidth',3); 
-% plot([2 2],[6.5 7.5],'k','linewidth',3); 
-% plot([19 19],[6.5 7.5],'k','linewidth',3); 
-% text(10,7.5,'Length','Fontsize',16); 
-% xticks(1:2:20); 
-% set(gca,'XTickLabel',{(1:2:20)/fps}); 
-% xlabel('Time (seconds)'); 
-% ylabel('Delta Px (a.u)'); 
-% %% Tsne  
-% 
-% % Downsample data 
-% sample = []; k = 1000; 
-% for b = 1:size(bouts,2) % for each active bout type 
-%     sample = [sample ; datasample(wake_cells(idx_numComp_sorted{1,1}==...
-%         (b+max(idx_numComp_sorted{2,1})),3:end),k)];
-% end
-% 
-% % Settings 
-%     % Reduce to 2 dimensions (for visulaisation) 
-%     % Start with PCA to your previously determined number of dimensions
-%     % Try a couple of perplexities
-%     knee_dim = 2; % define dimensisons to reduce to 
-%     perplex = [30 300 3000]; % perplexities to try 
-%     mappedX = cell(size(perplex,2),1);
-%     counter = 1; % start a counter 
-%     for per = perplex % For a range of possible perplexities
-%         mappedX{counter} = tsne(sample,[],2,knee_dim,per);
-%         counter = counter + 1; % add to counter 
-%     end
-%     
-% %% T-Sne Figure
-% 
-% % Choice of Perplexity
-% knee_perplexity = 3; 
-% 
-% figure; hold on; 
-% a = 1; 
-% for c = 1:size(bouts,2) % For each cluster 
-%     scatter(mappedX{knee_perplexity,1}(a:a+k-1,1),...
-%         mappedX{knee_perplexity,1}(a:a+k-1,2),...
-%         'markerfacecolor',cmap_cluster{1,1}(c,:),...
-%         'markeredgecolor',cmap_cluster{1,1}(c,:)); hold on; 
-%     a = a + k;
-% end 
-% 
-% %% Transitions 
-% 
-% % Pre-allocation
-% % Hard
-% steps = [1 2]; % markov steps to take
-% 
-% % Soft
-% transitions = cell(max(fish_tags{1,1}),size(steps,2),size(threads,3)); % fish x steps
-% all_states = max(idx_numComp_sorted{1,1}); % possible all_states
-% 
-% for sc = 1:size(threads,3) % For data/controls
-%     for f = 1:max(fish_tags{1,1}) % For each fish
-%         for s = 1:size(steps,2) % For each step size
-%             % Pre-allocate
-%             transitions{f,s,sc} = zeros(all_states,all_states,time_window(2),'single');
-%             % states x states x time windows
-%             
-%             for t = time_window(1):time_window(2) % For each time window
-%                 transitions{f,s,sc}(:,:,t) = accumarray(...
-%                     [threads{f,1,sc}(find(threads{f,3,sc} == t,1,'first'):...
-%                     find(threads{f,3,sc} == t,1,'last')-steps(s),1),...
-%                     threads{f,1,sc}(find(threads{f,3,sc} == t,1,'first')+steps(s):...
-%                     find(threads{f,3,sc} == t,1,'last'),1)],...
-%                     1,[all_states,all_states]); % Accumulate transitions
-%                 transitions{f,s,sc}(:,:,t) = bsxfun(@rdivide,transitions{f,s,sc}(:,:,t),...
-%                     sum(transitions{f,s,sc}(:,:,t),2)); % Convert to probabilities
-%             end
-%             transitions{f,s,sc}(isnan(transitions{f,s,sc})) = 0; % Convert nans to zeros
-%         end
-%     end
-% end
-% clear f s t sc
-% 
-% %% Sorting transitions 
-%     % For ease of averaging/stats 
-%     
-% % Pre-allocate
-% sorted_transitions = cell(2,size(steps,2),2); % day/night x steps x data/control
-%     % Then states x states x fish
-% 
-%     for sc = 1:size(threads,3) % for data/control
-%         for f = 1:max(fish_tags{1,1}) % For each fish
-%             for s = 1:size(steps,2) % For each step size
-%                 sorted_transitions{1,s,sc}(:,:,f) = nanmean(transitions{f,s,sc}(:,:,days),3);
-%                 sorted_transitions{2,s,sc}(:,:,f) = nanmean(transitions{f,s,sc}(:,:,nights),3);
-%             end
-%         end
-%     end
-% 
-% %% New Working 
-% figure; 
-% subplot(2,2,1); title('Day Mean','Fontsize',18); hold on; 
-% imagesc(nanmean(sorted_transitions{1,1,1},3) + nanmean(sorted_transitions{1,2,1},3),[0 0.5]); 
-% 
-% subplot(2,2,2); title('Day Shuffled Mean','Fontsize',18); hold on; 
-% imagesc(nanmean(sorted_transitions{1,1,2},3) + nanmean(sorted_transitions{1,2,2},3),[0 0.5]); 
-% 
-% subplot(2,2,3); title('Night Mean','Fontsize',18); hold on; 
-% imagesc(nanmean(sorted_transitions{2,1,1},3) + nanmean(sorted_transitions{2,2,1},3),[0 0.5]); 
-% 
-% subplot(2,2,4); title('Night Shuffled Mean','Fontsize',18); hold on; 
-% imagesc(nanmean(sorted_transitions{2,1,2},3) + nanmean(sorted_transitions{2,2,2},3),[0 0.5]); 
-% 
-% set(gca,'YDir','reverse')
-% plot([0.5,all_states+0.5],[max(idx_numComp_sorted{2,1})+0.5,max(idx_numComp_sorted{2,1})+0.5],...
-%     'k','linewidth',3);
-% plot([max(idx_numComp_sorted{2,1})+0.5,max(idx_numComp_sorted{2,1})+0.5],[0.5,all_states+0.5],...
-%     'k','linewidth',3);
-% set(gca, 'XTick', [median([min(idx_numComp_sorted{2,1})-0.5...
-%     max(idx_numComp_sorted{2,1})+0.5]) median([min(idx_numComp_sorted{1,1})-0.5...
-%     max(idx_numComp_sorted{1,1})+0.5])]);
-% set(gca,'XTickLabels',{'Inactive','Active'},'Fontsize',12)
-% xlabel('T_{2}','Fontsize',14); % X Labels
-% set(gca, 'YTick', [median([min(idx_numComp_sorted{2,1})-0.5...
-%     max(idx_numComp_sorted{2,1})+0.5]) median([min(idx_numComp_sorted{1,1})-0.5...
-%     max(idx_numComp_sorted{1,1})+0.5])]);
-% set(gca,'YTickLabels',{'Inactive','Active'},'Fontsize',12);
-% ylabel('T_{1}','Fontsize',14); % X Labels
-% axis([0.5 max(idx_numComp_sorted{1,1})+0.5 0.5 max(idx_numComp_sorted{1,1})+0.5]) 
-% c = colorbar; c.Label.String = 'Probability'; c.Label.FontSize = 14;
-%     
-% subplot(2,2,3); 
-% hold on; 
-% a = plot(squeeze(sorted_transitions{1,1,1}(1,7:end,:)),'color',cmap(1,:)); 
-% b = plot(squeeze(sorted_transitions{1,1,2}(1,7:end,:)),'color',[255 128 0]/255); 
-% box off; set(gca, 'Layer','top'); set(gca,'Fontsize',16);
-% xlabel('T_{2} Active Clusters','Fontsize',16);
-% ylabel('T_{1} = Inactive 1','Fontsize',18);
-% lgd = legend([a(1) b(1)],'Data','Shuffled Data','Location','Northeast');
-% lgd.LineWidth = 300; 
-% legend('boxoff');
-% 
-% subplot(2,2,4); 
-% hold on; 
-% a = plot(squeeze(sorted_transitions{1,1,1}(2,7:end,:)),'color',cmap(1,:)); 
-% b = plot(squeeze(sorted_transitions{1,1,2}(2,7:end,:)),'color',[255 128 0]/255); 
-% box off; set(gca, 'Layer','top'); set(gca,'Fontsize',16);
-% xlabel('T_{2} Active Clusters','Fontsize',16);
-% ylabel('T_{1} = Inactive 2','Fontsize',18);
-% lgd = legend([a(1) b(1)],'Data','Shuffled Data','Location','Northeast'); 
-% lgd.LineWidth = 3; 
-% legend('boxoff');
-% 
-% %% Statistics - chance Mask 
-%     
-% chance_mask = zeros(all_states,all_states,'single');
-% scrap = []; d = 0;
-% for e = 1:max(i_experiment_tags) % for each experiment
-%     for g = 1:max(i_group_tags) % for each group
-%         % for each fish
-%         for t = time_window(1):time_window(2) % for each time window
-%             for s = 1:size(transitions,2) % for each step size
-%                 for trans = 1:max(idx_numComp_sorted{1,1}) % for each transition
-%                     for cs = 1:size(transitions,3) % for data vs control
-%                         for f = find(i_experiment_tags == e & i_group_tags == g)'
-%                             if s == 1
-%                                 if trans <= max(idx_numComp_sorted{2,1})
-%                                     scrap = [scrap ;...
-%                                         transitions{f,s,cs}(trans,min(idx_numComp_sorted{1,1}):end,t)];
-%                                 else
-%                                     scrap = [scrap ;...
-%                                         transitions{f,s,cs}(trans,1:max(idx_numComp_sorted{2,1}),t)];
-%                                 end
-%                             else
-%                                 if trans <= max(idx_numComp_sorted{2,1})
-%                                     scrap = [scrap ;...
-%                                         transitions{f,s,cs}(trans,1:max(idx_numComp_sorted{2,1}),t)];
-%                                 else
-%                                     scrap = [scrap ;...
-%                                         transitions{f,s,cs}(trans,min(idx_numComp_sorted{1,1}):end,t)];
-%                                 end
-%                             end
-%                         end
-%                     end
-%                     
-%                     anova_group(1:size(scrap,1)) = 1;
-%                     anova_group(1:size(scrap,1)/2) = 0;
-%                     
-%                     try
-%                         d = manova1(scrap,anova_group);
-%                     catch
-%                     end
-%                     
-%                     if d >= 1
-%                         if s == 1
-%                             chance_mask(trans,min(idx_numComp_sorted{1,1}):end)...
-%                                 = 1;
-%                         else
-%                             chance_mask(trans,1:max(idx_numComp_sorted{2,1}))...
-%                                 = 1;
-%                         end
-%                     end
-%                     scrap = []; d = 0;
-%                     clear anova_group;
-%                 end
-%             end
-%         end
-%     end
-% end
-% 
-% %% Statistics Working 
-% scrap = [squeeze(sorted_transitions{1,2,1}(16,7:18,:))...
-%     squeeze(sorted_transitions{1,2,2}(16,7:18,:))]'; 
-% 
-% anova_group(1:size(scrap,1)) = 1; 
-% anova_group(1:size(scrap,1)/2) = 0; 
-% 
-% d = manova1(scrap,anova_group)
-% 
-% subplot(1,2,1)
-% imagesc([nanmean(sorted_transitions{1,1,1},3) + nanmean(sorted_transitions{1,2,1},3)])
-% colorbar
-% subplot(1,2,2)
-% imagesc([nanmean(sorted_transitions{1,1,2},3) + nanmean(sorted_transitions{1,2,2},3)])
-% 
-% %% Statistics 
-% % Data
-% data_vec = [];
-% for f = 1:size(transitions,1) % For each fish
-%     data_vec = [data_vec reshape(transitions{f,1} + transitions{f,2},...
-%         [1,(all_states^2)*size([days nights],2)])];
-% end
-% 
-% % Anova parameters 
-% anova_group = [];
-% anova_experiment = []; 
-% anova_time = []; 
-% at = ones(1,size(transitions{1,1},3));
-% at(2:2:size(at,2)) = 2; 
-% for f = 1:size(transitions,1) % For each fish 
-%     anova_group = [anova_group...
-%         repmat(i_group_tags(f),[1,size(transitions{f,1},3)])]; 
-%     anova_experiment = [anova_experiment...
-%         repmat(i_experiment_tags(f),[1,size(transitions{f,1},3)])]; 
-%     anova_time = [anova_time at];
-% end 
-% clear at; 
-% 
-% % Calculation 
-% for t = 1:all_states^2 % For each transition
-%     clear anova_vec;
-%     anova_vec = data_vec(t:all_states^2:end); % Grab data for this transition 
-%     [twa.st.p(:,t),~,twa.st.stats{t}] = anovan(anova_vec,...
-%                 {anova_group,anova_time,anova_experiment},...
-%                 'display','off','model','full');
-% end
-% 
-% %% Image SC Figure - With joined two all_states  
-% 
-% % Chance Filter 
-% chance_filter = cell(2,1); 
-% for t = 1:2 % For day / night 
-%     clear scrap 
-%     chance_filter{t,1} = nanmean(sorted_transitions{t,1},3) + ...
-%         nanmean(sorted_transitions{t,2},3); 
-%     chance_filter{t,1}(chance_filter{t,1}(:,1:max(idx_numComp_sorted{2,1}))...
-%         < 1/max(idx_numComp_sorted{2,1})) = NaN;
-%     scrap = chance_filter{t,1}(:,max(idx_numComp_sorted{2,1})+1:end); 
-%     scrap(scrap < 1/(max(idx_numComp_sorted{1,1}) - max(idx_numComp_sorted{2,1})))...
-%         = NaN; 
-%     chance_filter{t,1}(:,max(idx_numComp_sorted{2,1})+1:end) = scrap; 
-% end 
-% chance_filter_logical = isnan(chance_filter{1,1}) + isnan(chance_filter{2,1}); 
-% chance_filter_logical(chance_filter_logical == 2) = NaN;  
-% chance_filter_logical(isnan(chance_filter_logical) == 0) = 1; 
-% 
-% % Figure 
-% top = 0.4; % Hard coded 
-% 
-% figure;
-% for t = 1:2
-%     ax(t) = subplot(1,3,t); hold on; set(gca,'Layer','top'); box on;
-%     imAlpha=ones(size(chance_filter{t,1})); imAlpha(isnan(chance_filter{t,1}))=0;
-%     imagesc(chance_filter{t,1},'AlphaData',imAlpha,...
-%         [1/(max(idx_numComp_sorted{1,1}) - max(idx_numComp_sorted{2,1})) top]); % remove NaN values
-%     axis([0.5 all_states+0.5 0.5 all_states+0.5])
-%     set(gca,'YDir','reverse')
-%     plot([0.5,all_states+0.5],[max(idx_numComp_sorted{2,1})+0.5,max(idx_numComp_sorted{2,1})+0.5],...
-%         'k','linewidth',3);
-%     plot([max(idx_numComp_sorted{2,1})+0.5,max(idx_numComp_sorted{2,1})+0.5],[0.5,all_states+0.5],...
-%         'k','linewidth',3);
-%     
-%     set(gca, 'XTick', [median([min(idx_numComp_sorted{2,1})-0.5...
-%         max(idx_numComp_sorted{2,1})+0.5]) median([min(idx_numComp_sorted{1,1})-0.5...
-%         max(idx_numComp_sorted{1,1})+0.5])]);
-%     set(gca,'XTickLabels',{'Inactive','Active'},'Fontsize',12)
-%     xlabel('T_{2}','Fontsize',14); % X Labels
-%     
-%     set(gca, 'YTick', [median([min(idx_numComp_sorted{2,1})-0.5...
-%         max(idx_numComp_sorted{2,1})+0.5]) median([min(idx_numComp_sorted{1,1})-0.5...
-%         max(idx_numComp_sorted{1,1})+0.5])]);
-%     set(gca,'YTickLabels',{'Inactive','Active'},'Fontsize',12)
-%     ylabel('T_{1}','Fontsize',14); % X Labels
-%     c = colorbar; c.Label.String = 'Probability'; c.Label.FontSize = 14; 
-% 
-% end
-% 
-% ax(1).Title.String = 'Day'; ax(1).Title.FontSize = 18; 
-% ax(2).Title.String = 'Night'; ax(2).Title.FontSize = 18;
-% 
-% %% Filtered ImageSC
-% 
-% difference = (nanmean(sorted_transitions{1,1},3) + nanmean(sorted_transitions{1,2},3))...
-%     - (nanmean(sorted_transitions{2,1},3) + nanmean(sorted_transitions{2,2},3)); 
-% difference = difference(:)'; 
-% found = find(twa.st.p(2,:) < 0.05 & twa.st.p(6,:) > 0.05); % filter 
-% clear scrap; scrap = nan(1,size(twa.st.p,2)); % nan vector 
-% scrap(found) = difference(found); 
-% scrap = reshape(scrap,[all_states all_states]); % reshape to match transitions matrix 
-% 
-% % Figure
-% subplot(1,3,3); hold on; set(gca,'Layer','top'); box on; set(gca,'Fontsize',18); 
-% title('Day - Night Transitions','Fontsize',18); 
-% imAlpha=ones(size(scrap)); imAlpha(isnan(scrap))=0; % Filter for sig
-% imAlpha(isnan(chance_filter_logical)) = 0; % Filter for chance 
-% imagesc(scrap,'AlphaData',imAlpha,[-0.02 0.02]); % remove NaN values 
-% c = colorbar; c.Label.String = 'Probability (difference)'; c.Label.FontSize = 14;
-% % Details 
-% axis([0.5 all_states+0.5 0.5 all_states+0.5])
-% set(gca,'YDir','reverse')
-% plot([0.5,all_states+0.5],[max(idx_numComp_sorted{2,1})+0.5,max(idx_numComp_sorted{2,1})+0.5],...
-% 'k','linewidth',3);
-% plot([max(idx_numComp_sorted{2,1})+0.5,max(idx_numComp_sorted{2,1})+0.5],[0.5,all_states+0.5],...
-% 'k','linewidth',3);
-% set(gca, 'XTick', [median([min(idx_numComp_sorted{2,1})-0.5...
-% max(idx_numComp_sorted{2,1})+0.5]) median([min(idx_numComp_sorted{1,1})-0.5...
-% max(idx_numComp_sorted{1,1})+0.5])]);
-% set(gca,'XTickLabels',{'Inactive','Active'},'Fontsize',12)
-% xlabel('T_{2}','Fontsize',14); % X Labels
-% set(gca, 'YTick', [median([min(idx_numComp_sorted{2,1})-0.5...
-% max(idx_numComp_sorted{2,1})+0.5]) median([min(idx_numComp_sorted{1,1})-0.5...
-% max(idx_numComp_sorted{1,1})+0.5])]);
-% set(gca,'YTickLabels',{'Inactive','Active'},'Fontsize',12)
-% ylabel('T_{1}','Fontsize',14); % X Labels
-% 
-% %% % of Sig Transitions 
-% size(find(isnan(chance_filter{1,1}) == 0),1)/all_states^2;
-% size(find(isnan(chance_filter{2,1}) == 0),1)/all_states^2;
-% sum(imAlpha(:)')/all_states^2; 
-% 
-% 
-% %% Sequitur 
-% 
-% % Info 
-%     %https://github.com/aexbrown/Behavioural_Syntax
-%     %http://www.sequitur.info/
-% 
-%     % Run Sequitur 
-%     tic
-%     [grammar, compVec, totSavings] = ...
-%         compressSequenceNFast(threads{1,1,2}', [], 5);
-%     toc
-%     
-%     % Expand Grammer 
-%     tic 
-%     [gExp, ~] = expandGrammar(grammar, compVec);
-%     toc
-%            
-%     % Rule Lengths 
-%     for i = 1:size(gExp,1) % for each rule 
-%         rule_lengths(i) = size(gExp{i},2);  
-%     end
-%     
-%     rule_counts = histcounts(rule_lengths,1:max(rule_lengths)+1);
-%     
-%     figure; 
-%     plot(rule_counts/nansum(rule_counts,2),'color',cmap_2(1,:),'linewidth',3); 
-%     axis([2 max(rule_lengths) ylim]); 
-%     
-%     % Compression 
-%     compressability = totSavings/size(threads{1,1,1}',2);
-%     % gExp{1}{1,end} - most compressive 
-%     % gExp{find(rule_lengths == 8,1,'last')}{1,end} - most nested 
-% 
-%     % Grammar in Time
-% 
-% % Variables
-% gTime = zeros(size(gExp,1),max(times),'single'); % time winodws
-% gI = zeros(size(gExp,1),1,'single'); % instances 
-% 
-% % Loop
-%     times = threads{1,3,2}'; % time windows
-% tic 
-% for g = 1:size(gExp,1) % for each rule
-%     clear terminalInds ruleLength
-%     
-%     % Locate
-%     [terminalInds, ruleLength] = ...
-%         getTerminalInds(compVec, gExp, gExp{g}{1});
-%     
-%     % Find time windows/Transitions
-%     gTime(g,:) = ...
-%         histcounts(times(terminalInds),min(days):max(days)+1)/ruleLength;
-%     
-%     % Normalise 
-%     gTime(g,:) = gTime(g,:)./nansum(gTime(g,:),2); 
-%     
-%     disp(horzcat('Located symbol ',num2str(g),' of ',num2str(size(gExp,1))))
-% end
-% toc 
-%     % Tag Patterns as Day or Night 
-%     dn_score = nansum(gTime(:,days),2) - nansum(gTime(:,nights),2); 
-%     
-%     dn_tag = zeros(size(gExp,1),1); 
-%     dn_tag(dn_score > 0.25) = 1; 
-%     dn_tag(dn_score < - 0.25) = 2; 
-%     
-%     figure; axis([1 7 0 1]); hold on; 
-%     a = plot(gTime(dn_tag == 1,:)','color',cmap_2(1,:)); 
-%     b = plot(gTime(dn_tag == 2,:)','color',cmap_2(2,:)); 
-%     c = plot(gTime(dn_tag == 0,:)','color',[1 0.5 0]); 
-% 
-%     legend([a(1),b(1),c(1)],...
-%         horzcat('Day - ',num2str(round(size(a,1)/size(gExp,1),2,'Significant'))),...
-%         horzcat('Night - ',num2str(round(size(b,1)/size(gExp,1),2,'Significant'))),...
-%         horzcat('Non - ',num2str(round(size(c,1)/size(gExp,1),2,'Significant'))),...
-%         'location','best');
-%     
-%     % Counts Figure 
-%     figure; 
-%     plot(gI,'color',cmap_2(1,:),'linewidth',3)
-%     set(gca,'XScale','log'); % set log axis
-%     
+clear er set_token g scrap counter
