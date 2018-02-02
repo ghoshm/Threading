@@ -13,6 +13,7 @@
  %% Load data (Post State_Space_4)
     % Note that running State_Space_4 first is necessary to re-order the
         % Clusters by a suitable metric 
+set(0,'DefaultFigureWindowStyle','docked'); % dock figures 
 
 % Load  
 load('D:\Behaviour\SleepWake\Re_Runs\Post_State_Space_Data\New\180111.mat')
@@ -277,7 +278,7 @@ end
 % Calculate pdf 
 density = pdf(GMModels{1},sample); 
 
-% Scatter Plot 
+% 3D Scatter Plot 
 figure; cols = 1;
 for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1}) % for each active cluster 
     scatter3(sample(sample_tags==c,1),sample(sample_tags==c,2),...
@@ -292,6 +293,16 @@ end
 axis tight; box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 set(gca,'XTickLabels',[]); set(gca,'YTickLabels',[]); set(gca,'ZTickLabels',[]); grid off;  
 xlabel('PC 1','Fontsize',32); ylabel('PC 2','Fontsize',32); zlabel('Density','Fontsize',32); 
+
+% 2D Scatter Plot 
+figure; cols = 1;
+for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1}) % for each active cluster 
+    scatter(sample(sample_tags==c,1),sample(sample_tags==c,2),18,...
+        'markerfacecolor',cmap_cluster{1,1}(cols,:),...
+        'markeredgecolor','k');
+    cols = cols + 1;
+    hold on; 
+end
 
 clear c cols 
 
@@ -741,6 +752,12 @@ end
 
 clear scrap c 
 
+%% Identifying Interesting Sequences 
+
+% Sequences used by all fish 
+size(find(sum(common_table(:,1:124),2) == 124),1); 
+[~,idx] = max(sum(sum(gCount_merge{1,1}(:,nights_crop{1}(nights{1}),1:124),2),3))
+
 %% Grammar in time - WT Example Sequences  
 comps = 3; clear exampleSeqs scrap; % number of comparisons to show
 [~,exampleSeqs(1:comps)] = maxk(dn_score{1,1},comps); % find most day like sequence 
@@ -752,7 +769,7 @@ exampleFish = datasample(find(sum(common_table(exampleSeqs,i_experiment_reps == 
     size(exampleSeqs,2)),1,'replace',false); 
 
 % Figure 
-figure; cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; 
+%figure; cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; 
 for e = 1:size(exampleSeqs,2) % for each example sequence 
     subplot(2,comps,e);     
     Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{exampleSeqs(e),1}),...
@@ -923,3 +940,46 @@ for er = 1:max(experiment_reps) % for each group of experiments
 end
 
 clear ax er set_token g scrap counter
+
+%% Localising Patterns in Time 
+for er = 1:max(experiment_reps) % for each group of experiments 
+    timeSeqs{er,1} = sparse(size(uniqueSeqs{1,1},1),size(raw_data{er,1},2)); % seqs x frames  
+end 
+
+clear scrap;
+for er = 1:max(experiment_reps) % for each group of experiments
+    tic
+    for s = find(sum(common_table(:,i_experiment_reps == er),2) > 0)' % for each used sequence 
+        scrap = zeros(size(raw_data{er,1}),'single'); % empty matrix
+        counter = 1; % start a counter 
+        
+        for f = find(i_experiment_reps == er)' % for each fish
+            
+            Tlocs = strfind(threads{f,1,1}',uniqueSeqs{1,1}{s,1}); % find pattern start
+            Rlocs = threads{f,2,1}(Tlocs,1); % find pattern start in real time
+            Rlocs = Rlocs + offset(er,(i_experiment_tags(f) - ...
+                (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % correct for offset 
+            scrap(counter,Rlocs) = 1; % fill in ones 
+            counter = counter + 1; % add to counter 
+        end
+        
+        timeSeqs{er,1}(s,:) = single(sum(scrap)./sum(scrap(:)')); % calc freq 
+        
+        if mod(s,1000) == 0 % every sequences 
+            disp(horzcat('Finished ',num2str((s/size(uniqueSeqs{1,1},1))*100),'%')); 
+            % report progress 
+        end 
+    end
+    toc 
+end
+
+%% Correlations between fish 
+scrap = corrcoef(squeeze(sum(gCount_merge{1,1},2)));
+
+er = 5; 
+
+imAlpha=ones(size(scrap(i_experiment_reps == er,i_experiment_reps == er)),'single'); 
+imAlpha(tril(scrap(i_experiment_reps == er,i_experiment_reps == er)) > 0) = 0; % find nan values 
+imagesc(scrap(i_experiment_reps == er,i_experiment_reps == er),'AlphaData',imAlpha);
+colormap(cmap_cluster_merge); colorbar; 
+
