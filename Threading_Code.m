@@ -755,13 +755,56 @@ clear scrap c
 %% Identifying Interesting Sequences 
 
 % Sequences used by all fish 
-size(find(sum(common_table(:,1:124),2) == 124),1); 
-[~,idx] = max(sum(sum(gCount_merge{1,1}(:,nights_crop{1}(nights{1}),1:124),2),3))
+
+dn_score = cell(1,2); % allocate - high dn score = day, low dn_score = night (1 -> -1)
+dn_score{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % {t/c} - seqs x 1
+dn_score{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % {t/c} - seqs x 1
+
+for tc = 1:2 % for data/control
+    for i = 1:size(dn_score{1,tc},1) % for each sequence
+        dn_score{1,tc}(i,1) = ...
+            sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),i_experiment_reps==1),3)) - ...
+            sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),i_experiment_reps==1),3));
+    end
+end
+
+toy(:,1) = nanmean(nanmean(gCount_merge{1,1}(:,days_crop{1}(days{1}),i_experiment_reps==1),2),3); 
+toy(:,2) = nanmean(nanmean(gCount_merge{1,1}(:,nights_crop{1}(nights{1}),i_experiment_reps==1),2),3); 
+
+comps = 100; clear exampleSeqs scrap; % number of comparisons to show
+[~,exampleSeqs(1:comps)] = maxk(toy(:,1).*dn_score{1,1},comps); % find most day like sequence 
+[~,scrap] = mink(toy(:,2).*dn_score{1,1},comps); % find most night like sequences 
+exampleSeqs = [exampleSeqs (scrap)']; clear scrap; 
+
+scatter(toy(:,1),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(1,:),...
+    'markeredgecolor',cmap_2{1}(1,:))
+hold on; scatter(toy(:,2),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(2,:),...
+    'markeredgecolor',cmap_2{1}(2,:))
+scatter(toy(exampleSeqs(1:comps),1),dn_score{1,1}(exampleSeqs(1:comps),1),36,'markerfacecolor',cmap_2{1}(1,:),...
+    'markeredgecolor',[1 0.5 0])
+scatter(toy(exampleSeqs(comps+1:end),2),dn_score{1,1}(exampleSeqs(comps+1:end),1),36,'markerfacecolor',cmap_2{1}(2,:),...
+    'markeredgecolor',[1 0.5 0])
+
+figure;
+clear scrap;
+scrap = grammar_mat(exampleSeqs,:);
+scrap = scrap(:,1:find(sum(isnan(scrap))~=comps*2,1,'last'));
+subplot(1,2,1); 
+ax = imagesc(scrap(1:comps,:),'AlphaData',isnan(scrap(1:comps,:))==0); % imagesc with nan values in white
+subplot(1,2,2); 
+ax = imagesc(scrap(comps+1:end,:),'AlphaData',isnan(scrap(comps+1:end,:))==0); % imagesc with nan values in white
+colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+set(ax,'CDataMapping','direct');
+c = colorbar; c.Label.String = 'Cluster';
+xlabel('Position in Sequence','Fontsize',32);
+ylabel('Sequence','Fontsize',32);
+clear ax grammar_mat_sorted c
 
 %% Grammar in time - WT Example Sequences  
 comps = 3; clear exampleSeqs scrap; % number of comparisons to show
-[~,exampleSeqs(1:comps)] = maxk(dn_score{1,1},comps); % find most day like sequence 
-[~,scrap] = mink(dn_score{1,1},comps); % find most day like sequence 
+[~,exampleSeqs(1:comps)] = maxk(dn_score{1,1},comps); % find most day like sequences 
+[~,scrap] = mink(dn_score{1,1},comps); % find most night like sequences 
 exampleSeqs = [exampleSeqs flip(scrap)']; clear scrap; 
 
 % randomly choose a fish who all both sequences 
@@ -901,37 +944,37 @@ for er = 1:max(experiment_reps) % for each group of experiments
         set(gca, 'XTick', []); % Turn off X-Ticks
         ylabel('Sequence Counts','Fontsize',12); % Y Labels
         
-        % Plot Sequence - from randomly chosen fish
-        subplot(2,5,counter + comps); hold on; set(gca,'FontName','Calibri');
-        if er == 1
-            exampleFish = datasample(find(sum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
-                1,'replace',false);
-        else 
-            exampleFish = datasample(find(sum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
-                1,'replace',false) + fish_tags_cm(er - 1);
-        end   
-        Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{s,1}),...
-            1,'replace',false);
-        Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
-            threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{s,1},2)-1),2);
-        Rlocs = Rlocs + offset(er,(i_experiment_tags(exampleFish) - ... 
-            (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1)));
-        if er ~= 1
-        exampleFish = exampleFish - fish_tags_cm(er - 1); 
-        end 
-        ax = imagesc([1,size(raw_data{er,1}(exampleFish,Rlocs),2)],...
-            [0,max(raw_data{er,1}(exampleFish,Rlocs))],...
-            repmat(states{er,1}(exampleFish,Rlocs),[max(raw_data{er,1}(exampleFish,Rlocs)),1]));
-        hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');
-        plot(raw_data{er,1}(exampleFish,Rlocs),'k','linewidth',3); hold on;
-
-        % Figure Formatting 
-        axis([1 size(raw_data{er,1}(exampleFish,Rlocs),2) 0 max(raw_data{er,1}(exampleFish,Rlocs))]) 
-        set(gca,'XTickLabels',xticks/fps{1})
-        box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
-        xlabel('Time (Seconds)','FontSize',12);
-        ylabel('Delta Px','FontSize',12);
-        set(ax,'CDataMapping','direct'); 
+%         % Plot Sequence - from randomly chosen fish
+%         subplot(2,5,counter + comps); hold on; set(gca,'FontName','Calibri');
+%         if er == 1
+%             exampleFish = datasample(find(nansum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
+%                 1,'replace',false);
+%         else 
+%             exampleFish = datasample(find(nansum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
+%                 1,'replace',false) + fish_tags_cm(er - 1);
+%         end   
+%         Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{s,1}),...
+%             1,'replace',false);
+%         Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
+%             threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{s,1},2)-1),2);
+%         Rlocs = Rlocs + offset(er,(i_experiment_tags(exampleFish) - ... 
+%             (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1)));
+%         if er ~= 1
+%         exampleFish = exampleFish - fish_tags_cm(er - 1); 
+%         end 
+%         ax = imagesc([1,size(raw_data{er,1}(exampleFish,Rlocs),2)],...
+%             [0,max(raw_data{er,1}(exampleFish,Rlocs))],...
+%             repmat(states{er,1}(exampleFish,Rlocs),[max(raw_data{er,1}(exampleFish,Rlocs)),1]));
+%         hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');
+%         plot(raw_data{er,1}(exampleFish,Rlocs),'k','linewidth',3); hold on;
+% 
+%         % Figure Formatting 
+%         axis([1 size(raw_data{er,1}(exampleFish,Rlocs),2) 0 max(raw_data{er,1}(exampleFish,Rlocs))]) 
+%         set(gca,'XTickLabels',xticks/fps{1})
+%         box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
+%         xlabel('Time (Seconds)','FontSize',12);
+%         ylabel('Delta Px','FontSize',12);
+%         set(ax,'CDataMapping','direct'); 
 
         counter = counter + 1; % add to counter
 
