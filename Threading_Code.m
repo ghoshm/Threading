@@ -511,8 +511,7 @@ end
 
 figure; 
 grammar_mat_sorted = flip(sortrows(grammar_mat)); % sort rows of grammar_mat  
-imAlpha=ones(size(grammar_mat_sorted),'single'); imAlpha(isnan(grammar_mat_sorted))=0; % find nan values 
-ax = imagesc(grammar_mat_sorted,'AlphaData',imAlpha); % imagesc with nan values in white 
+ax = imagesc(grammar_mat_sorted,'AlphaData',isnan(grammar_mat_sorted)==0); % imagesc with nan values in white 
 colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 set(ax,'CDataMapping','direct'); 
@@ -532,8 +531,39 @@ end
 
 clear f 
 
-%% Compressibility N-Way Anova 
+%% Compressibility N-Way Anova  
 
+for er = 1:max(i_experiment_reps) % for each group of experiments
+    
+    clear anova_group anova_tc anova_experiment data
+    
+    % Grouping Variables
+    anova_group = repmat(i_group_tags(i_experiment_reps==er),[2,1])'; % groups
+    anova_tc = ones(size(anova_group)); % real vs shuffled data
+    anova_tc(1:size(i_group_tags(i_experiment_reps==er),1)) = 0;
+    anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),[2,1])'; % experiments
+    
+    % Data to Compare 
+    if er == 1 % WT - compare real vs shuffled data 
+        data = compressibility(i_experiment_reps==er,:); % grab data
+        data = data(:)'; % vectorise
+    else % compare difference in compression between groups 
+        data = compressibility(i_experiment_reps==er,1) - ... 
+            compressibility(i_experiment_reps==er,2); % difference in compressibility 
+        data = data(:)'; % vectorise 
+        anova_group = anova_group(1:size(data,2)); % trim  
+        anova_tc = anova_tc(1:size(data,2)); % trim 
+        anova_experiment = anova_experiment(1:size(data,2)); % trim 
+    end
+    
+    % Comparison 
+    [twa.compress.p{1,er},~,twa.compress.stats{1,er}] = anovan(data,...
+        {anova_group,anova_tc,anova_experiment},...
+        'display','off','model','full');
+    
+end
+
+clear er anova_group anova_tc anova_experiment data
 
 %% Compressibility Figure 
 
@@ -542,6 +572,7 @@ for er = 1:max(experiment_reps) % for each group of experiments
     set_token = find(experiment_reps == er,1,'first'); % settings
     subplot(2,3,er); counter = 1; clear scrap; 
     hold on; set(gca,'FontName','Calibri');
+    
     for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
         plot([counter,counter+1],compressibility(i_experiment_reps == er & i_group_tags == g,:)',...
             'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
@@ -553,6 +584,7 @@ for er = 1:max(experiment_reps) % for each group of experiments
         scrap(1,g) = min(min(compressibility(i_experiment_reps == er & i_group_tags == g,:))); 
         scrap(2,g) = max(max(compressibility(i_experiment_reps == er & i_group_tags == g,:))); 
     end
+    
     box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
     if er == 1
         set(gca, 'XTick', [1 2]); % set X-ticks
@@ -625,7 +657,7 @@ end
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\Grammar_Results_Final.mat',...
     'gCount','gFreq')
 
-%% Grammar in Time - dn score (WT)
+%% Merge Legion Data 
 
 gFreq_merge = cell(1,2); % allocate
 gFreq_merge{1,1} = zeros(size(gFreq{1,1},1),size(gFreq{1,1},2),...
@@ -641,21 +673,9 @@ for tc = 1:2 % for data/control
     end
 end
 
-dn_score = cell(1,2); % allocate - high dn score = day, low dn_score = night (1 -> -1)
-dn_score{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % {t/c} - seqs x 1
-dn_score{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % {t/c} - seqs x 1
+clear tc f gFreq gCount
 
-for tc = 1:2 % for data/control
-    for i = 1:size(dn_score{1,tc},1) % for each sequence
-        dn_score{1,tc}(i,1) = ...
-            sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),i_experiment_reps == 1),3)) - ...
-            sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),i_experiment_reps == 1),3));
-    end
-end
-
-clear tc f i gFreq gCount
-
- %% Grammar in Time Figure
+ %% Grammar in Time Figure (VERY SLOW...) 
 % 
 % % Generate dn_colormap
 % colors_p = [linspace(cmap_2{1}(1,1),cmap_2{1}(2,1),20)',...
@@ -709,53 +729,78 @@ clear tc f i gFreq gCount
 %% "Common-ness" of Grammar
 
 % Logical Table 
-common_table = zeros(size(uniqueSeqs{1,1},1),size(gFreq_merge{1,1},3),'single'); 
+common_table = zeros(size(uniqueSeqs{1,1},1),size(gFreq_merge{1,1},3),'single'); % sequences x fish  
 
 for s = 1:size(common_table,1) % for each sequence 
     common_table(s,:) = sum(squeeze(gFreq_merge{1,1}(s,:,:))); 
+    % binary 1 (fish uses sequence) or zero (fish doesn't) 
 end 
 
 %% Common-ness of Grammar Figures 
 
+% Overall Percentage of Fish who use each sequence 
 figure; 
 box off; set(gca, 'Layer','top'); hold on; 
 set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format   
-histogram((sum(common_table,2)/size(common_table,2))*100,'Normalization','probability','EdgeColor','none',...
-    'FaceColor',cmap{1}(1,:));
+histogram((sum(common_table,2)/size(common_table,2))*100,'Normalization','probability','binwidth',5,...
+    'EdgeColor','none','FaceColor',cmap{1}(1,:));
 xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
-axis([0 100 0 0.05]); 
+axis tight 
 
-% figure; 
-% scrap = flip(sortrows(grammar_mat(sum(common_table,2) == max(sum(common_table,2)),:))); % sort rows   
-% imAlpha=ones(size(scrap),'single'); imAlpha(isnan(scrap))=0; % find nan values 
-% imagesc(scrap,'AlphaData',imAlpha); % imagesc with nan values in white 
-% colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
-% set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-% c = colorbar; c.Label.String = 'Cluster'; 
-% xlabel('Position in Sequence','Fontsize',32); 
-% ylabel('Sequence','Fontsize',32);
-
+% Number of Sequences used by each fish  
 figure; 
 for er = 1:max(experiment_reps) % for each group of experiments 
     set_token = find(experiment_reps == er,1,'first'); % settings
-    subplot(2,3,er); box off; set(gca, 'Layer','top'); hold on;
+    ax = subplot(2,3,er); box off; set(gca, 'Layer','top'); hold on;
     set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
-    for g = 1:max(i_group_tags(i_experiment_reps == er)) 
-        histogram((sum(common_table(:,i_group_tags(i_experiment_reps==er)==g),2)/...
-            sum(i_group_tags(i_experiment_reps==er)==g))*100,...
-            'binwidth',5,'Normalization','probability','EdgeColor','none',...
-            'FaceColor',cmap{set_token}(g,:));
-    end 
-    xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
-    axis tight
+    spread_cols = plotSpread(sum(common_table(:,i_experiment_reps==er))',...
+        'distributionIdx',i_group_tags(i_experiment_reps == er),...
+        'distributionColors',cmap{set_token},'showMM',2);
+    set(findall(ax,'type','line'),'markersize',15); % change marker sizes
+    spread_cols{2}.LineWidth = 3; spread_cols{2}.Color = 'k'; % Change Mean properties
+    spread_cols{2}.MarkerSize = 12;
+    ylabel('Number of Sequences','Fontsize',32); % Axis Labels
+    set(gca,'xticklabel',geno_list{set_token}.colheaders,'Fontsize',32); % Name each group
 end 
 
-clear scrap c 
+clear ax er 
 
-%% Identifying Interesting Sequences (is)
+%% Normalise Counts by number of frames per time window (CHECK)
+gCount_norm = gCount_merge(1,1); % sequences x fish
+tw_length_corrections = []; % allocate 
+
+for er = 1:max(experiment_reps) % for each group of experiments
+    for e = find(experiment_reps == er) % for each experiment
+        
+        % Check if the water was topped up
+        if sum(sleep_cells_nan_track(experiment_tags{2,1}==e,1)) == 0 % no
+            gCount_norm{1,1}(:,1:(size(lb{e},1)-1),i_experiment_tags==e) = ...
+                gCount_norm{1,1}(:,1:(size(lb{e},1)-1),i_experiment_tags==e)./diff(lb{e})';
+            % divide each time window by the number of frames
+        
+        else % yes
+            
+            for f = find(i_experiment_tags(i_experiment_reps==er)==e)' % for each fish
+                
+                tw_lengths = histcounts(find(states{er,1}(f,:) == 0),lb{e});
+                % find top-up periods and which time window they fall into 
+                
+                gCount_norm{1,1}(:,1:(size(lb{e},1)-1),f+fish_tags_cm(er-1,1)) = ...
+                    gCount_norm{1,1}(:,1:(size(lb{e},1)-1),f+fish_tags_cm(er-1,1))./...
+                    (diff(lb{e})' - tw_lengths); % divide using the corrected number of frames 
+                
+                tw_length_corrections = [tw_length_corrections ; tw_lengths]; % store corrections 
+                clear  tw_lengths   
+            end     
+        end
+    end
+end
+
+clear er e f 
+%% Identifying Interesting Sequences (is) 
 
 % Settings 
-comps = 1000; % number of sequences to identify 
+comps = 500; % number of sequences to identify 
 
 % PCA Approach
 for er = 1:max(experiment_reps) % for each experiment repeat
@@ -775,6 +820,8 @@ for er = 1:max(experiment_reps) % for each experiment repeat
     [~,comps_v{er,1}(:,1)] = maxk(is_coeff{er,1}(:,1),comps); % return top comps sequences from pc1. 
     
 end
+
+clear er set_token data 
 
 %% WT Day Night Score 
     % Currently an alternative to the PCA approach for the WT data 
