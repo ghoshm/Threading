@@ -765,8 +765,8 @@ end
 
 clear ax er 
 
-%% Normalise Counts by number of frames per time window (CHECK)
-gCount_norm = gCount_merge(1,1); % sequences x fish
+%% Normalise Counts by number of frames per time window
+gCount_norm = gCount_merge(1,1); % sequences x time windows x fish
 tw_length_corrections = []; % allocate 
 
 for er = 1:max(experiment_reps) % for each group of experiments
@@ -800,79 +800,104 @@ clear er e f
 %% Identifying Interesting Sequences (is) 
 
 % Settings 
-comps = 500; % number of sequences to identify 
+comps = 5; % number of sequences to identify 
 
-% PCA Approach
+% mRMR Approach 
 for er = 1:max(experiment_reps) % for each experiment repeat
     set_token =  find(experiment_reps == er,1,'first'); % settings
     
     if er == 1 % for the WT fish
-        clear data; data = ...
-            [squeeze(nanmean(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2))' ; ...
-            squeeze(nanmean(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))'];        
+        clear data tw; data = ...
+            double([squeeze(nansum(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2))' ; ...
+            squeeze(nansum(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))']); 
+        tw = ones(size(data,1),1); tw(1:size(data,1)/2) = 0; % day vs night data 
     else
-        clear data; data = ...
-            squeeze(nanmean(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2) - ...
-            nanmean(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))';        
+        clear data tw; data = ...
+            double(squeeze(nansum(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2) - ...
+            nansum(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))'); 
+        tw = i_group_tags(i_experiment_reps == er); 
     end
     
-    [is_coeff{er,1},is_score{er,1},~,~,is_explained{er,1},~] = pca(data); % pca
-    [~,comps_v{er,1}(:,1)] = maxk(is_coeff{er,1}(:,1),comps); % return top comps sequences from pc1. 
-    
+    tic
+    [comps_v{er,1}(:,1)] = mrmr_miq_d(data,tw, comps); 
+    toc
+
 end
 
-clear er set_token data 
+% PCA Approach
+% for er = 1:max(experiment_reps) % for each experiment repeat
+%     set_token =  find(experiment_reps == er,1,'first'); % settings
+%     
+%     if er == 1 % for the WT fish
+%         clear data; data = ...
+%             [squeeze(nanmean(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2))' ; ...
+%             squeeze(nanmean(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))'];        
+%     else
+%         clear data; data = ...
+%             squeeze(nanmean(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2) - ...
+%             nanmean(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))';        
+%     end
+%     
+%     [is_coeff{er,1},is_score{er,1},~,~,is_explained{er,1},~] = pca(data); % pca
+%     [~,comps_v{er,1}(:,1)] = maxk(is_coeff{er,1}(:,1),comps); % return top comps sequences from pc1. 
+%     
+% end
+
+clear er set_token data tw 
 
 %% WT Day Night Score 
     % Currently an alternative to the PCA approach for the WT data 
     
-dn_score = cell(1,2); % allocate - high dn score = day, low dn_score = night (1 -> -1)
-dn_score{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % {t/c} - seqs x 1
-dn_score{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % {t/c} - seqs x 1
-
-for tc = 1:2 % for data/control
-    for i = 1:size(dn_score{1,tc},1) % for each sequence
-        dn_score{1,tc}(i,1) = ...
-            sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),i_experiment_reps==1),3)) - ...
-            sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),i_experiment_reps==1),3));
-    end
-end
-
-dn_count(:,1) = nanmean(nanmean(gCount_merge{1,1}(:,days_crop{1}(days{1}),i_experiment_reps==1),2),3); 
-dn_count(:,2) = nanmean(nanmean(gCount_merge{1,1}(:,nights_crop{1}(nights{1}),i_experiment_reps==1),2),3); 
-
-clear exampleSeqs scrap; % number of comparisons to show
-[~,exampleSeqs(1:comps/2)] = maxk(dn_count(:,1).*dn_score{1,1},comps/2); % find most day like sequence 
-[~,scrap] = mink(dn_count(:,2).*dn_score{1,1},comps/2); % find most night like sequences 
-exampleSeqs = [exampleSeqs flip(scrap)']; clear scrap; 
-
-scatter(dn_count(:,1),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(1,:),...
-    'markeredgecolor',cmap_2{1}(1,:)); 
-hold on; scatter(dn_count(:,2),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(2,:),...
-    'markeredgecolor',cmap_2{1}(2,:)); 
-scatter(dn_count(exampleSeqs(1:comps/2),1),dn_score{1,1}(exampleSeqs(1:comps/2),1),36,'markerfacecolor',cmap_2{1}(1,:),...
-    'markeredgecolor',[1 0.5 0])
-scatter(dn_count(exampleSeqs((comps/2)+1:end),2),dn_score{1,1}(exampleSeqs((comps/2)+1:end),1),36,'markerfacecolor',cmap_2{1}(2,:),...
-    'markeredgecolor',[1 0.5 0])
+% dn_score = cell(1,2); % allocate - high dn score = day, low dn_score = night (1 -> -1)
+% dn_score{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % {t/c} - seqs x 1
+% dn_score{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % {t/c} - seqs x 1
+% 
+% for tc = 1:2 % for data/control
+%     for i = 1:size(dn_score{1,tc},1) % for each sequence
+%         dn_score{1,tc}(i,1) = ...
+%             sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),i_experiment_reps==1),3)) - ...
+%             sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),i_experiment_reps==1),3));
+%     end
+% end
+% 
+% dn_count(:,1) = nanmean(nanmean(gCount_merge{1,1}(:,days_crop{1}(days{1}),i_experiment_reps==1),2),3); 
+% dn_count(:,2) = nanmean(nanmean(gCount_merge{1,1}(:,nights_crop{1}(nights{1}),i_experiment_reps==1),2),3); 
+% 
+% clear exampleSeqs scrap; % number of comparisons to show
+% [~,exampleSeqs(1:comps/2)] = maxk(dn_count(:,1).*dn_score{1,1},comps/2); % find most day like sequence 
+% [~,scrap] = mink(dn_count(:,2).*dn_score{1,1},comps/2); % find most night like sequences 
+% exampleSeqs = [exampleSeqs flip(scrap)']; clear scrap; 
+% 
+% scatter(dn_count(:,1),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(1,:),...
+%     'markeredgecolor',cmap_2{1}(1,:)); 
+% hold on; scatter(dn_count(:,2),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(2,:),...
+%     'markeredgecolor',cmap_2{1}(2,:)); 
+% scatter(dn_count(exampleSeqs(1:comps/2),1),dn_score{1,1}(exampleSeqs(1:comps/2),1),36,'markerfacecolor',cmap_2{1}(1,:),...
+%     'markeredgecolor',[1 0.5 0])
+% scatter(dn_count(exampleSeqs((comps/2)+1:end),2),dn_score{1,1}(exampleSeqs((comps/2)+1:end),1),36,'markerfacecolor',cmap_2{1}(2,:),...
+%     'markeredgecolor',[1 0.5 0])
 
 %% Set WT Interesting Sequences to be based on dn_score/probability 
 
-comps_v{1,1}(:,1) = exampleSeqs; 
+% comps_v{1,1}(:,1) = exampleSeqs; 
 
 %% Interesting Sequences Figure 
 
-figure; clear scrap;
-scrap = grammar_mat(comps_v{1,1}(:,1),:);
-scrap = scrap(:,1:find(sum(isnan(scrap))~=comps,1,'last'));
-ax = imagesc(scrap(1:comps,:),'AlphaData',isnan(scrap(1:comps,:))==0); % imagesc with nan values in white
-ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
-colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
-set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-set(ax,'CDataMapping','direct');
-c = colorbar; c.Label.String = 'Cluster';
-xlabel('Position in Sequence','Fontsize',32);
-ylabel('Sequence','Fontsize',32);
-clear ax grammar_mat_sorted c
+figure; 
+for er = 1:max(experiment_reps)
+    subplot(2,3,er);
+    clear scrap;
+    scrap = grammar_mat(comps_v{er,1}(:,1),:);
+    scrap = scrap(:,1:find(sum(isnan(scrap))~=comps,1,'last'));
+    ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
+    colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
+    set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+    set(ax,'CDataMapping','direct');
+    %c = colorbar; c.Label.String = 'Cluster';
+    xlabel('Position in Sequence','Fontsize',32);
+    ylabel('Sequence','Fontsize',32);
+    clear ax grammar_mat_sorted c
+end
 
 %% Grammar Comparison Figure  
 
