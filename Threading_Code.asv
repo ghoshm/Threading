@@ -431,7 +431,7 @@ clear b icons plots legend_lines legend_cols legend_cell
 % disp('Finished Compressing Fish'); 
 % toc
 
-%% Load in Legion Data (START HERE - 18.02.06)
+%% Load in Legion Data (START HERE)
 % Ease memory 
 clear raw_data_all cells 
 
@@ -800,7 +800,7 @@ clear er e f
 %% Identifying Interesting Sequences (is) 
 
 % Settings 
-comps = 100; % number of sequences to identify 
+comps = 5; % number of sequences to identify 
 
 % mRMR Approach 
 for er = 1:max(experiment_reps) % for each experiment repeat
@@ -818,7 +818,9 @@ for er = 1:max(experiment_reps) % for each experiment repeat
         tw = i_group_tags(i_experiment_reps == er); 
     end
     
+    tic
     [comps_v{er,1}(:,1)] = mrmr_miq_d(data,tw, comps); 
+    toc
 
 end
 
@@ -841,7 +843,7 @@ end
 %     
 % end
 
-clear er set_token data 
+clear er set_token data tw 
 
 %% WT Day Night Score 
     % Currently an alternative to the PCA approach for the WT data 
@@ -881,51 +883,42 @@ clear er set_token data
 
 %% Interesting Sequences Figure 
 
-figure; clear scrap;
-scrap = grammar_mat(comps_v{1,1}(:,1),:);
-scrap = scrap(:,1:find(sum(isnan(scrap))~=comps,1,'last'));
-ax = imagesc(scrap(1:comps,:),'AlphaData',isnan(scrap(1:comps,:))==0); % imagesc with nan values in white
-ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
-colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
-set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-set(ax,'CDataMapping','direct');
-c = colorbar; c.Label.String = 'Cluster';
-xlabel('Position in Sequence','Fontsize',32);
-ylabel('Sequence','Fontsize',32);
-clear ax grammar_mat_sorted c
+figure; 
+for er = 1:max(experiment_reps) % for each group of experiments 
+    subplot(2,3,er); % subplot 
+    clear scrap;
+    scrap = grammar_mat(comps_v{er,1}(:,1),:); % grab sequences 
+    scrap = scrap(:,1:find(sum(isnan(scrap))~=comps,1,'last')); % trim to longest length 
+    ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
+    colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
+    set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+    set(ax,'CDataMapping','direct');
+    %c = colorbar; c.Label.String = 'Cluster';
+    xlabel('Position in Sequence','Fontsize',32);
+    ylabel('Sequence','Fontsize',32);
+    clear ax grammar_mat_sorted c
+end
 
 %% Grammar Comparison Figure  
 
 % Settings
-comps_plot = [1,comps/2,comps]; % Set the sequences to show
-cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; % merged colormap 
+cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; % merged colormap
 
 for er = 1:max(experiment_reps) % for each group of experiments
-    figure; clear scrap; 
+    figure; clear scrap;
     counter = 1; % counts subplots
     set_token = find(experiment_reps == er,1,'first'); % settings
     
-    if er == 1
-       seqs = [1 ...
-           find(seq_lengths{1,1}(comps_v{er,1}(1:(comps/2),1)) == max(seq_lengths{1,1}(comps_v{er,1}(1:(comps/2),1))),1,'first')...
-           (find(seq_lengths{1,1}(comps_v{er,1}(((comps/2)+1):end,1)) == max(seq_lengths{1,1}(comps_v{er,1}(((comps/2)+1):end,1))),1,'last') + comps/2)...
-           comps]; 
-       seqs = comps_v{er,1}(seqs,1)'; 
-    else 
-       [~,O] = sort(seq_lengths{1,1}(comps_v{er,1}(:,1))); % sort interesting sequences by their length
-       seqs = comps_v{er,1}(O(comps_plot),1)'; 
-    end 
-   
-    for s = seqs % for each sequence  
+    for s = comps_v{er,1}' % for each sequence
         
         % Plot Lines
-        subplot(2,size(seqs,2),counter); hold on; set(gca,'FontName','Calibri');
+        subplot(2,comps,counter); hold on; set(gca,'FontName','Calibri');
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
-%             if er == 1 
-%             plot(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-%                 i_experiment_reps == er & i_group_tags == g)),...
-%                 'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-%             end 
+            %             if er == 1
+            %             plot(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+            %                 i_experiment_reps == er & i_group_tags == g)),...
+            %                 'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+            %             end
             errorbar(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
                 i_experiment_reps == er & i_group_tags == g)),2),...
                 (nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
@@ -954,8 +947,8 @@ for er = 1:max(experiment_reps) % for each group of experiments
             uistack(r(a),'bottom'); % Send to back
             a = a + 1; night_start = night_start + 2; % Add to counters
         end
-    
-        % Figure Formatting 
+        
+        % Figure Formatting
         axis([0.5 size([days_crop{set_token}(days{set_token}) nights_crop{set_token}(nights{set_token})],2)+0.5 ...
             y_lims]); % Set axis
         box off; set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
@@ -963,137 +956,184 @@ for er = 1:max(experiment_reps) % for each group of experiments
         set(gca, 'XTick', []); % Turn off X-Ticks
         ylabel({'Mean' ; 'Sequence Counts'},'Fontsize',12); % Y Labels
         
+        if counter == comps
+            [~,~,~,~] = legend(geno_list{set_token}.colheaders,'Location','best'); % Generate axis
+            legend('boxoff'); % Turn legend off
+        end
+        
         % Plot Sequence - from randomly chosen fish
-        subplot(2,size(seqs,2),counter + size(seqs,2)); hold on; set(gca,'FontName','Calibri');
-        if er == 1
+        subplot(2,comps,counter + comps); hold on; set(gca,'FontName','Calibri');
+        if er == 1 % for the WT fish
             exampleFish = datasample(find(nansum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
-                1,'replace',false);
-        else 
+                1,'replace',false); % find a fish who uses this sequence
+        else
             exampleFish = datasample(find(nansum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
-                1,'replace',false) + fish_tags_cm(er - 1);
-        end   
+                1,'replace',false) + fish_tags_cm(er - 1); % find a fish who uses this sequence
+        end
         Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{s,1}),...
-            1,'replace',false); % position in threads 
+            1,'replace',false); % sample an instance of this sequence (position in threads)
         Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
-            threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{s,1},2)-1),2); % position in frames 
-        Rlocs = Rlocs + offset(er,(i_experiment_tags(exampleFish) - ... 
-            (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % position in offset data 
-        if er ~= 1 % fish tag for raw_data 
-        exampleFish = exampleFish - fish_tags_cm(er - 1); 
-        end 
+            threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{s,1},2)-1),2); % start-end (position in frames)
+        Rlocs = Rlocs + offset(er,(i_experiment_tags(exampleFish) - ...
+            (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % position in offset data
+        if er ~= 1 % fish tag for raw_data
+            exampleFish = exampleFish - fish_tags_cm(er - 1);
+        end
         ax = imagesc([1,size(raw_data{er,1}(exampleFish,Rlocs),2)],...
             [0,max(raw_data{er,1}(exampleFish,Rlocs))],...
             repmat(states{er,1}(exampleFish,Rlocs),[max(raw_data{er,1}(exampleFish,Rlocs)),1]));
         hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal');
         plot(raw_data{er,1}(exampleFish,Rlocs),'k','linewidth',3); hold on;
-
-        % Figure Formatting 
-        axis([1 size(raw_data{er,1}(exampleFish,Rlocs),2) 0 max(raw_data{er,1}(exampleFish,Rlocs))]) 
-        set(gca,'XTickLabels',xticks/fps{1})
+        
+        % Figure Formatting
+        axis([1 size(raw_data{er,1}(exampleFish,Rlocs),2) 0 max(raw_data{er,1}(exampleFish,Rlocs))]);
+        set(gca,'XTickLabels',xticks/fps{1});
         box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
         xlabel('Time (Seconds)','FontSize',12);
         ylabel('Delta Px','FontSize',12);
-        set(ax,'CDataMapping','direct'); 
-
+        set(ax,'CDataMapping','direct');
+        
         counter = counter + 1; % add to counter
-
+        
     end
     
 end
 
 clear ax er set_token g scrap counter seqs
 
-%% Statistical Comparisons of Counts 
+%% IS Transition Probabilities 
+steps = 1; % Markov Steps to Take 
 
-% Allocate 
-twa.gs = cell(1,max(experiment_reps)); 
-
+% Pre-allocate
+transitions = zeros(all_states,all_states,size(threads,1),...
+    7,'single');
+% states x states x time windows
+    
 for er = 1:max(experiment_reps) % for each group of experiments
-    set_token =  find(experiment_reps == er,1,'first'); % settings 
+    set_token = find(experiment_reps == er,1,'first'); % settings
     
-    % Grouping variables
-    anova_group = repmat(i_group_tags(i_experiment_reps==er),...
-        [size([days{set_token} nights{set_token}],2),1])'; % groups
-    anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),...
-        [size([days{set_token} nights{set_token}],2),1])'; % experiments
-    anova_time = [];
-    for t = time_window{set_token}(1):time_window{set_token}(2) % For each time window
-        anova_time = [anova_time ; ones(sum(i_experiment_reps==er),1)*mod(t,2)];
-        % Allocate alternating zeros and ones to each time window
+    for f = find(i_experiment_reps==er)' % for each fish 
+        
+        for t = time_window{set_token}(1):time_window{set_token}(2)
+            transitions(:,:,f,t) = accumarray(...
+                [threads{f,1,1}(find(threads{f,3,1} == t,1,'first'):...
+                find(threads{f,3,1} == t,1,'last')-steps,1),...
+                threads{f,1,1}(find(threads{f,3,1} == t,1,'first')+steps:...
+                find(threads{f,3,1} == t,1,'last'),1)],...
+                1,[all_states,all_states]); % Accumulate transitions
+            transitions(:,:,f,t) = bsxfun(@rdivide,transitions(:,:,f,t),...
+                sum(transitions(:,:,f,t),2)); % Convert to probabilities
+            transitions(isnan(transitions)) = 0; % Convert nans to zeros
+        end
     end
-    anova_time = anova_time';
-    
-    % Statistical Comparisons 
-    tic
-    for s = 1:size(uniqueSeqs{1,1},1) % for each sequence
-        
-        data = squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-            i_experiment_reps == er))';
-        data = data(:)'; % vectorise
-        
-        [twa.gs{1,er}(s,:)] = single(anovan(data,...
-            {anova_group,anova_time,anova_experiment},...
-            'display','off','model','full'));
-        
-        % Allocate 
-        if s == 1 % for the first sequence 
-           twa.gs{1,er}(2:size(uniqueSeqs{1,1},1),1:size(twa.gs{1,er},2)) = single(NaN); 
-           %twa.gs{2,er} = [twa.gs{2,er} ; cell(size(uniqueSeqs{1,1},1)-1,1)]; 
-        end 
-        
-        % Report Progress 
-        if mod(s,1000) == 0
-           disp(horzcat('Completed ',num2str(s),' Comparisons of ',...
-               num2str(size(uniqueSeqs{1,1},1)),' er = ',num2str(er)));
-        end 
-    end
-    toc 
-    clear set_token anova_group anova_experiment anova_time data 
 end
 
-%% Correct P-values for multiple comparisons 
+%% Localising IS in Time 
 
-%% Localising Patterns in Time 
-for er = 1:max(experiment_reps) % for each group of experiments 
-    timeSeqs{er,1} = sparse(size(uniqueSeqs{1,1},1),size(raw_data{er,1},2)); % seqs x frames  
-end 
+for er = 1:max(experiment_reps) % for each group of experiments
+    for s = 1:comps
+        timeSeqs{er,s} = sparse(size(raw_data{er,1},1),size(raw_data{er,1},2));
+        % experiment reps x is {fish x frames)
+    end
+end
 
 clear scrap;
 for er = 1:max(experiment_reps) % for each group of experiments
-    tic
-    for s = find(sum(common_table(:,i_experiment_reps == er),2) > 0)' % for each used sequence 
-        scrap = zeros(size(raw_data{er,1}),'single'); % empty matrix
-        counter = 1; % start a counter 
+    counter_2 = 1; % start a counter (counts sequences)
+    
+    for s = comps_v{er,1}'  % for each interesting sequence
+        counter = 1; % start a counter (counts fish)
         
         for f = find(i_experiment_reps == er)' % for each fish
             
-            Tlocs = strfind(threads{f,1,1}',uniqueSeqs{1,1}{s,1}); % find pattern start
-            Rlocs = threads{f,2,1}(Tlocs,1); % find pattern start in real time
+            Tlocs = strfind(threads{f,1,1}',uniqueSeqs{1,1}{s,1}); % find pattern starts (positions in threads)
+            Rlocs = threads{f,2,1}(Tlocs,1); % find pattern starts in real time (frames)
             Rlocs = Rlocs + offset(er,(i_experiment_tags(f) - ...
-                (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % correct for offset 
-            scrap(counter,Rlocs) = 1; % fill in ones 
-            counter = counter + 1; % add to counter 
+                (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % correct for offset (frames)
+            timeSeqs{er,counter_2}(counter,Rlocs) = 1; % fill in ones
+            counter = counter + 1; % add to counter (counts fish)
+            
         end
         
-        timeSeqs{er,1}(s,:) = single(sum(scrap)./sum(scrap(:)')); % calc freq 
+        counter_2 = counter_2 + 1; % add to counter (counts sequences)
         
-        if mod(s,1000) == 0 % every sequences 
-            disp(horzcat('Finished ',num2str((s/size(uniqueSeqs{1,1},1))*100),'%')); 
-            % report progress 
-        end 
     end
-    toc 
 end
 
+%% IS in Time Figure 
+
+figure; 
+er = 1; 
+for s = 1:comps
+    subplot(1,comps,s); hold on;
+    clear scrap; scrap = full(timeSeqs{er,s}); 
+    for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
+        plot(smooth(sum(scrap(i_group_tags(i_experiment_reps==er)==g,:))/...
+            sum(sum(timeSeqs{er,s}(i_group_tags(i_experiment_reps==er)==g,:)))),25*60*15),...
+            'color',cmap{set_token}(g,:)); 
+        
+    end
+end
+
+%% Statistical Comparisons of Counts 
+
+% % Allocate 
+% twa.gs = cell(1,max(experiment_reps)); 
+% 
+% for er = 1:max(experiment_reps) % for each group of experiments
+%     set_token =  find(experiment_reps == er,1,'first'); % settings 
+%     
+%     % Grouping variables
+%     anova_group = repmat(i_group_tags(i_experiment_reps==er),...
+%         [size([days{set_token} nights{set_token}],2),1])'; % groups
+%     anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),...
+%         [size([days{set_token} nights{set_token}],2),1])'; % experiments
+%     anova_time = [];
+%     for t = time_window{set_token}(1):time_window{set_token}(2) % For each time window
+%         anova_time = [anova_time ; ones(sum(i_experiment_reps==er),1)*mod(t,2)];
+%         % Allocate alternating zeros and ones to each time window
+%     end
+%     anova_time = anova_time';
+%     
+%     % Statistical Comparisons 
+%     tic
+%     for s = 1:size(uniqueSeqs{1,1},1) % for each sequence
+%         
+%         data = squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+%             i_experiment_reps == er))';
+%         data = data(:)'; % vectorise
+%         
+%         [twa.gs{1,er}(s,:)] = single(anovan(data,...
+%             {anova_group,anova_time,anova_experiment},...
+%             'display','off','model','full'));
+%         
+%         % Allocate 
+%         if s == 1 % for the first sequence 
+%            twa.gs{1,er}(2:size(uniqueSeqs{1,1},1),1:size(twa.gs{1,er},2)) = single(NaN); 
+%            %twa.gs{2,er} = [twa.gs{2,er} ; cell(size(uniqueSeqs{1,1},1)-1,1)]; 
+%         end 
+%         
+%         % Report Progress 
+%         if mod(s,1000) == 0
+%            disp(horzcat('Completed ',num2str(s),' Comparisons of ',...
+%                num2str(size(uniqueSeqs{1,1},1)),' er = ',num2str(er)));
+%         end 
+%     end
+%     toc 
+%     clear set_token anova_group anova_experiment anova_time data 
+% end
+
+%% Correct P-values for multiple comparisons 
+
 %% Correlations between fish 
-scrap = corrcoef(squeeze(sum(gCount_merge{1,1},2)));
-
-er = 5; 
-
-imAlpha=ones(size(scrap(i_experiment_reps == er,i_experiment_reps == er)),'single'); 
-imAlpha(tril(scrap(i_experiment_reps == er,i_experiment_reps == er)) > 0) = 0; % find nan values 
-imagesc(scrap(i_experiment_reps == er,i_experiment_reps == er),'AlphaData',imAlpha);
-colormap(cmap_cluster_merge); colorbar; 
+% scrap = corrcoef(squeeze(sum(gCount_merge{1,1},2)));
+% 
+% er = 5; 
+% 
+% imAlpha=ones(size(scrap(i_experiment_reps == er,i_experiment_reps == er)),'single'); 
+% imAlpha(tril(scrap(i_experiment_reps == er,i_experiment_reps == er)) > 0) = 0; % find nan values 
+% imagesc(scrap(i_experiment_reps == er,i_experiment_reps == er),'AlphaData',imAlpha);
+% colormap(cmap_cluster_merge); colorbar; 
 
 %% Old Working 
 
