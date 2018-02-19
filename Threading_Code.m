@@ -23,35 +23,41 @@ for f = 1:size(filename,2) %For each file
     delta_px_sq{1,f} = load(strcat(pathname,filename{f}),'delta_px_sq'); % load delta_px_sq data  
 end 
 
-%% Threading 
+%% Threading With Multiple Shuffles of Data  
+    % Note that I'm now keeping only the real time windows 
+    % Rather than storing multiple copies of these (which are redundant) 
+    
+% Shuffles
+shuffles = 10; % hard coded number of shuffles
 
 % Pre-allocation
-threads = cell(max(fish_tags{1,1}),3,2); % fish x (clusters,times (start & stop),time windows) x (samples vs controls) 
-idx_numComp_sorted{1,1} = idx_numComp_sorted{1,1} + max(idx_numComp_sorted{2,1}); % Assign higher numbers to the wake bouts 
-idx_numComp_sorted{2,1}(isnan(idx_numComp_sorted{2,1})) = 0; % replace nan-values with zero 
+threads = cell(max(fish_tags{1,1}),3,(1+shuffles)); % fish x (clusters,times (start & stop),time windows) x (samples vs controls)
+idx_numComp_sorted{1,1} = idx_numComp_sorted{1,1} + max(idx_numComp_sorted{2,1}); % Assign higher numbers to the wake bouts
+idx_numComp_sorted{2,1}(isnan(idx_numComp_sorted{2,1})) = 0; % replace nan-values with zero
 
 tic
-for f = 1:max(fish_tags{1,1}) % For each fish 
-    
+for f = 1:max(fish_tags{1,1}) % For each fish
     % Pre-allocate
     % Data
     threads{f,1,1} = nan(size(find(fish_tags{1,1} == f),1) + ...
-        size(find(fish_tags{2,1} == f),1),1,'single'); % clusters    
-    threads{f,2,1} = nan(size(threads{f,1,1},1),2,'single'); % times (start & stop) 
-    threads{f,3,1} = nan(size(threads{f,1,1}),'single'); % time windows 
+        size(find(fish_tags{2,1} == f),1),1,'single'); % clusters
+    threads{f,2,1} = nan(size(threads{f,1,1},1),2,'single'); % times (start & stop)
+    threads{f,3,1} = nan(size(threads{f,1,1}),'single'); % time windows
     
-    % Control 
-    threads{f,1,2} = nan(size(threads{f,1,1}),'single'); % clusters    
-    threads{f,3,2} = nan(size(threads{f,1,1}),'single'); % time windows
-    
-    % Deterime starting state (a = wake, b = sleep) 
-    if wake_cells(find(fish_tags{1,1} == f,1,'first'),1) == 1 % If the fish starts active 
-        a = 1; b = 2; 
-    else % If the fish starts inactive 
-        a = 2; b = 1; 
+    % Control
+    for tc = 2:size(threads,3) % for each shuffle
+        %threads{f,1,tc} = nan(size(threads{f,1,1}),'single'); % clusters
+        threads{f,3,tc} = nan(size(threads{f,1,1}),'single'); % time windows
     end
     
-    % Fill in data 
+    % Deterime starting state (a = wake, b = sleep)
+    if wake_cells(find(fish_tags{1,1} == f,1,'first'),1) == 1 % If the fish starts active
+        a = 1; b = 2;
+    else % If the fish starts inactive
+        a = 2; b = 1;
+    end
+    
+    % Fill in data
     % Clusters
     threads{f,1,1}(a:2:end,1) = idx_numComp_sorted{1,1}...
         (fish_tags{1,1} == f,1); % Fill in active clusters
@@ -64,30 +70,115 @@ for f = 1:max(fish_tags{1,1}) % For each fish
         (fish_tags{2,1} == f,1:2); % Fill in inactive times
     % Time Windows
     threads{f,3,1}(a:2:end,1) = parameter_indicies{1,1}...
-        (fish_tags{1,1} == f,1); % Fill in active time windows 
+        (fish_tags{1,1} == f,1); % Fill in active time windows
     threads{f,3,1}(b:2:end,1) = parameter_indicies{2,1}...
-        (fish_tags{2,1} == f,1); % Fill in inactive time windows 
-   
-    % Generate Control data 
-    % Clusters
-    clear scrap; scrap = idx_numComp_sorted{1,1}...
-        (fish_tags{1,1} == f,1); % Take active bout data 
-    threads{f,1,2}(a:2:end,1) = scrap(randperm(length(scrap))); % Mix  
-    clear scrap; scrap = idx_numComp_sorted{2,1}...
-        (fish_tags{2,1} == f,1); % Take inactive bout data 
-    threads{f,1,2}(b:2:end,1) = scrap(randperm(length(scrap))); % Mix 
-    % Time windows 
-    threads{f,3,2} = threads{f,3,1}; % Break up using the same time windows  
+        (fish_tags{2,1} == f,1); % Fill in inactive time windows
     
-    % Report progress 
-    if mod(f,100) == 0 % every 100 fish 
+    % Generate Control data
+    % Clusters
+    for tc = 2:size(threads,3) % for each shuffle
+        for tw = 1:max(parameter_indicies{1,1}(fish_tags{1,1} == f)) % for each time window
+            data = []; scrap = []; % empty structures 
+            
+            % take clusters 
+            scrap{1,1} = idx_numComp_sorted{1,1}(fish_tags{1,1} == f & parameter_indicies{1,1} == tw,1);
+            scrap{2,1} = idx_numComp_sorted{2,1}(fish_tags{2,1} == f & parameter_indicies{2,1} == tw,1);
+            
+            data = nan((size(scrap{1,1},1) + size(scrap{2,1},1)),1,'single'); % allocate 
+            data(a:2:end,1) = scrap{1,1}(randperm(length(scrap{1,1}))); % fill data 
+            data(b:2:end,1) = scrap{2,1}(randperm(length(scrap{2,1}))); % fill data 
+            
+            threads{f,1,tc} = [threads{f,1,tc} ; data]; % store data 
+            
+            % Deterime current final state (a = wake, b = sleep)
+            if threads{f,1,tc}(end,1) <= numComp(2) % If the fish ends inactive
+                a = 1; b = 2; % next will be active
+            else % If the fish starts inactive
+                a = 2; b = 1; % next will be inactive
+            end
+            
+        end
+    end
+    
+    % Report progress
+    if mod(f,100) == 0 % every 100 fish
         disp(horzcat('Threaded Fish ',num2str(f),' of ',...
             num2str(max(fish_tags{1,1})))); % Report progress
     end
-end 
-toc 
+    
+end
+toc
 
-clear f a b scrap  
+clear a b f tc tw scrap data
+
+%% Threading 
+
+% % Shuffles 
+% shuffles = 10; % hard coded number of shuffles 
+% 
+% % Pre-allocation
+% threads = cell(max(fish_tags{1,1}),3,(1+shuffles)); % fish x (clusters,times (start & stop),time windows) x (samples vs controls) 
+% idx_numComp_sorted{1,1} = idx_numComp_sorted{1,1} + max(idx_numComp_sorted{2,1}); % Assign higher numbers to the wake bouts 
+% idx_numComp_sorted{2,1}(isnan(idx_numComp_sorted{2,1})) = 0; % replace nan-values with zero 
+% 
+% tic
+% for f = 1:max(fish_tags{1,1}) % For each fish 
+%     
+%     % Pre-allocate
+%     % Data
+%     threads{f,1,1} = nan(size(find(fish_tags{1,1} == f),1) + ...
+%         size(find(fish_tags{2,1} == f),1),1,'single'); % clusters    
+%     threads{f,2,1} = nan(size(threads{f,1,1},1),2,'single'); % times (start & stop) 
+%     threads{f,3,1} = nan(size(threads{f,1,1}),'single'); % time windows 
+%     
+%     % Control 
+%     threads{f,1,2} = nan(size(threads{f,1,1}),'single'); % clusters    
+%     threads{f,3,2} = nan(size(threads{f,1,1}),'single'); % time windows
+%     
+%     % Deterime starting state (a = wake, b = sleep) 
+%     if wake_cells(find(fish_tags{1,1} == f,1,'first'),1) == 1 % If the fish starts active 
+%         a = 1; b = 2; 
+%     else % If the fish starts inactive 
+%         a = 2; b = 1; 
+%     end
+%     
+%     % Fill in data 
+%     % Clusters
+%     threads{f,1,1}(a:2:end,1) = idx_numComp_sorted{1,1}...
+%         (fish_tags{1,1} == f,1); % Fill in active clusters
+%     threads{f,1,1}(b:2:end,1) = idx_numComp_sorted{2,1}...
+%         (fish_tags{2,1} == f,1); % Fill in inactive clusters
+%     % Times
+%     threads{f,2,1}(a:2:end,1:2) = wake_cells...
+%         (fish_tags{1,1} == f,1:2); % Fill in active times
+%     threads{f,2,1}(b:2:end,1:2) = sleep_cells...
+%         (fish_tags{2,1} == f,1:2); % Fill in inactive times
+%     % Time Windows
+%     threads{f,3,1}(a:2:end,1) = parameter_indicies{1,1}...
+%         (fish_tags{1,1} == f,1); % Fill in active time windows 
+%     threads{f,3,1}(b:2:end,1) = parameter_indicies{2,1}...
+%         (fish_tags{2,1} == f,1); % Fill in inactive time windows 
+%    
+%     % Generate Control data 
+%     % Clusters
+%     clear scrap; scrap = idx_numComp_sorted{1,1}...
+%         (fish_tags{1,1} == f,1); % Take active bout data 
+%     threads{f,1,2}(a:2:end,1) = scrap(randperm(length(scrap))); % Mix  
+%     clear scrap; scrap = idx_numComp_sorted{2,1}...
+%         (fish_tags{2,1} == f,1); % Take inactive bout data 
+%     threads{f,1,2}(b:2:end,1) = scrap(randperm(length(scrap))); % Mix 
+%     % Time windows 
+%     threads{f,3,2} = threads{f,3,1}; % Break up using the same time windows  
+%     
+%     % Report progress 
+%     if mod(f,100) == 0 % every 100 fish 
+%         disp(horzcat('Threaded Fish ',num2str(f),' of ',...
+%             num2str(max(fish_tags{1,1})))); % Report progress
+%     end
+% end 
+% toc 
+% 
+% clear f a b scrap  
 
 %% Filling in Data 
 tic
@@ -522,7 +613,7 @@ grammar_mat{1,2}(grammar_mat{1,2}==0) = NaN; % replace zeros with nan
 %% Grammar Matrix Figure 
 
 figure; 
-grammar_mat_sorted = flip(sortrows(grammar_mat{1,2})); % sort rows of grammar_mat  
+grammar_mat_sorted = flip(sortrows(grammar_mat{1,1})); % sort rows of grammar_mat  
 ax = imagesc(grammar_mat_sorted,'AlphaData',isnan(grammar_mat_sorted)==0); % imagesc with nan values in white 
 colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap  
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
@@ -665,6 +756,8 @@ end
 % clear tc f t_one t_two i c 
 
 %% Load Grammar Freqs From Legion 
+
+% Note should remove gFreq 
 
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\Grammar_Results_Final.mat',...
     'gCount','gFreq')
@@ -816,7 +909,7 @@ gCount_norm = gCount_merge(1,1); % sequences x time windows x fish
 for s = 1:size(grammar_mat{1,1},1) % for each real sequence
     if grammar_mat_trans(s) > 0 % if the sequence is found in the shuffled data
        gCount_norm{1,1}(s,:,:) = gCount_merge{1,1}(s,:,:) - ...
-           gCount_merge{1,2}(grammar_mat_trans(s),:,:); 
+           gCount_merge{1,2}(grammar_mat_trans(s),:,:); % subtract the shuffled data
     end 
 end 
 
@@ -839,6 +932,11 @@ for er = 1:max(experiment_reps) % for each experiment repeat
             double([squeeze(nansum(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2))' ; ...
             squeeze(nansum(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))']); 
         tw = ones(size(data,1),1); tw(1:size(data,1)/2) = 0; % day vs night data 
+%           clear data tw; data = ...
+%             double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
+%             reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),size(grammar_mat{1,1},1),[])']); 
+%         tw = ones(size(data,1),1); tw(1:size(data,1)/2) = 0; % day vs night data 
+
     else
 %         clear data tw; data = ...
 %             double(squeeze(nansum(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2) - ...
@@ -857,9 +955,20 @@ for er = 1:max(experiment_reps) % for each experiment repeat
     tic
     for s = 1:size(comps_v{er,1},1) % for each comp sequence
         Mdl = fitcdiscr(data(:,1:s),tw,'DiscrimType','quadratic','CrossVal','on');
+            % Fit a quadratic classifier as you add features
+            % Using 10 fold cross validation 
+            % Hold 10% of data back by default 
         L(s) = kfoldLoss(Mdl);
     end
     toc
+
+    tsne_pro = tsne(data(:,1:10),'Algorithm','barneshut',...
+            'Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+            'Perplexity',30,'Standardize',1,'Verbose',0);
+        
+    figure; hold on; 
+    scatter(tsne_pro(tw==0,1),tsne_pro(tw==0,2),'c','filled');
+    scatter(tsne_pro(tw==1,1),tsne_pro(tw==1,2),'b','filled');
 
 end
 
