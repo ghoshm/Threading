@@ -16,22 +16,23 @@
 set(0,'DefaultFigureWindowStyle','docked'); % dock figures 
 
 % Load  
-load('D:\Behaviour\SleepWake\Re_Runs\Post_State_Space_Data\New\180111.mat')
+load('D:\Behaviour\SleepWake\Re_Runs\Post_State_Space_Data\New\180111.mat');
 
 % Load Delta_px_sq data 
 for f = 1:size(filename,2) %For each file
     delta_px_sq{1,f} = load(strcat(pathname,filename{f}),'delta_px_sq'); % load delta_px_sq data  
 end 
 
-%% Threading With Multiple Shuffles of Data  
-    % Note that I'm now keeping only the real time windows 
-    % Rather than storing multiple copies of these (which are redundant) 
-    
+%% Threading With Multiple Shuffles of Data 
+% Slow, Roughly 3 hours for 629 fish, each with 10 shuffles 
+% Note that I'm now keeping only the real time windows
+% Rather than storing multiple copies of these (which are redundant)
+
 % Shuffles
 shuffles = 10; % hard coded number of shuffles
 
 % Pre-allocation
-threads = cell(max(fish_tags{1,1}),3,(1+shuffles)); % fish x (clusters,times (start & stop),time windows) x (samples vs controls)
+threads = cell(max(fish_tags{1,1}),3,(1+shuffles)); % fish x (clusters,times (start & stop),time windows) x (samples & shuffled controls)
 idx_numComp_sorted{1,1} = idx_numComp_sorted{1,1} + max(idx_numComp_sorted{2,1}); % Assign higher numbers to the wake bouts
 idx_numComp_sorted{2,1}(isnan(idx_numComp_sorted{2,1})) = 0; % replace nan-values with zero
 
@@ -44,17 +45,11 @@ for f = 1:max(fish_tags{1,1}) % For each fish
     threads{f,2,1} = nan(size(threads{f,1,1},1),2,'single'); % times (start & stop)
     threads{f,3,1} = nan(size(threads{f,1,1}),'single'); % time windows
     
-    % Control
-    for tc = 2:size(threads,3) % for each shuffle
-        %threads{f,1,tc} = nan(size(threads{f,1,1}),'single'); % clusters
-        threads{f,3,tc} = nan(size(threads{f,1,1}),'single'); % time windows
-    end
-    
-    % Deterime starting state (a = wake, b = sleep)
+    % Deterime starting state (a = active, b = inactive)
     if wake_cells(find(fish_tags{1,1} == f,1,'first'),1) == 1 % If the fish starts active
-        a = 1; b = 2;
+        a = 1; b = 2; % start active
     else % If the fish starts inactive
-        a = 2; b = 1;
+        a = 2; b = 1; % start inactive
     end
     
     % Fill in data
@@ -74,26 +69,41 @@ for f = 1:max(fish_tags{1,1}) % For each fish
     threads{f,3,1}(b:2:end,1) = parameter_indicies{2,1}...
         (fish_tags{2,1} == f,1); % Fill in inactive time windows
     
-    % Generate Control data
+    % Generate Shuffled Control Data
+    % Note that each time window (e.g. day 1 vs day 2 etc) is
+    % shuffled individually within each fish
+    % Preserving the developmental & day/night cluster frequencies
+    
     % Clusters
     for tc = 2:size(threads,3) % for each shuffle
+        
+        % Determine Starting State
+        % Note that it's necessary to do this after each shuffle to
+        % re-set the starting state
+        if wake_cells(find(fish_tags{1,1} == f,1,'first'),1) == 1 % If the fish starts active
+            a = 1; b = 2; % start active
+        else % If the fish starts inactive
+            a = 2; b = 1; % start inactive
+        end
+        
+        % Shuffle data
         for tw = 1:max(parameter_indicies{1,1}(fish_tags{1,1} == f)) % for each time window
-            data = []; scrap = []; % empty structures 
+            data = []; scrap = []; % empty structures
             
-            % take clusters 
-            scrap{1,1} = idx_numComp_sorted{1,1}(fish_tags{1,1} == f & parameter_indicies{1,1} == tw,1);
-            scrap{2,1} = idx_numComp_sorted{2,1}(fish_tags{2,1} == f & parameter_indicies{2,1} == tw,1);
+            % take real clusters from this time window
+            scrap{1,1} = idx_numComp_sorted{1,1}(fish_tags{1,1} == f & parameter_indicies{1,1} == tw,1); % active
+            scrap{2,1} = idx_numComp_sorted{2,1}(fish_tags{2,1} == f & parameter_indicies{2,1} == tw,1); % inactive
             
-            data = nan((size(scrap{1,1},1) + size(scrap{2,1},1)),1,'single'); % allocate 
-            data(a:2:end,1) = scrap{1,1}(randperm(length(scrap{1,1}))); % fill data 
-            data(b:2:end,1) = scrap{2,1}(randperm(length(scrap{2,1}))); % fill data 
+            data = nan((size(scrap{1,1},1) + size(scrap{2,1},1)),1,'single'); % allocate (active + inactive clusters)
+            data(a:2:end,1) = scrap{1,1}(randperm(length(scrap{1,1}))); % fill active clusters
+            data(b:2:end,1) = scrap{2,1}(randperm(length(scrap{2,1}))); % fill inactive clusters
             
-            threads{f,1,tc} = [threads{f,1,tc} ; data]; % store data 
+            threads{f,1,tc} = [threads{f,1,tc} ; data]; % store data
             
             % Deterime current final state (a = wake, b = sleep)
             if threads{f,1,tc}(end,1) <= numComp(2) % If the fish ends inactive
                 a = 1; b = 2; % next will be active
-            else % If the fish starts inactive
+            else % If the fish ends active
                 a = 2; b = 1; % next will be inactive
             end
             
@@ -109,7 +119,7 @@ for f = 1:max(fish_tags{1,1}) % For each fish
 end
 toc
 
-clear a b f tc tw scrap data
+clear f a b tc tw data scrap
 
 %% Threading 
 
@@ -180,12 +190,16 @@ clear a b f tc tw scrap data
 % 
 % clear f a b scrap  
 
+%% Start Here 
+
+clear cells wake_cells_norm 
+
 %% Filling in Data 
 tic
 % Calculate time off-sets between repeats of experiments 
 c = nan(max(experiment_reps),1,'single'); % experiment groups x 1 
 for er = 1:max(experiment_reps) % for each group of experiments
-    lb_merge{er,1} = []; % structure 
+    lb_merge{er,1} = []; % structure {experiment groups}(light boundaries x experiments)
     for e = find(experiment_reps == er) % for each experiment in this group 
         lb_merge{er,1} = [lb_merge{er,1} lb{1,e}]; % merge light boundaries 
         % Note that this assumes that each experiment in each group has the
@@ -263,6 +277,21 @@ clear ax c x
 
 %% Distribution in time Figure (Run this one figure @ a time) 
 
+% New Version 
+s = 1; 
+figure; hold on;
+counter_2 = 1;
+for c = 7:16
+    legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1),...
+        smooth(sum(states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
+        lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1))==c)/...
+        sum(sum(states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
+        lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1))==c)),...
+        time_bins),'color',cmap_cluster{s}(counter_2,:),'linewidth',1.5);
+    counter_2 = counter_2 + 1;
+end
+
+% Old Version 
 all_states = double(max(idx_numComp_sorted{1,1})); % possible states
     % Note that subplot can't take single values
 ai_states(1:all_states) = 2; % specify if states are active (1) or inactive (2)
