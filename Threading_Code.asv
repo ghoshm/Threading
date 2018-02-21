@@ -190,6 +190,11 @@ clear f a b tc tw data scrap
 % 
 % clear f a b scrap  
 
+%% Start Here 
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180220.mat')
+
+clear cells wake_cells_norm 
+
 %% Filling in Data 
 tic
 % Calculate time off-sets between repeats of experiments 
@@ -271,95 +276,225 @@ ylabel('Fish ID','Fontsize',32);
  
 clear ax c x 
 
-%% Distribution in time Figure (Run this one figure @ a time) 
+%% Smooth Cluster Frequencies Over Time  
 
+% New Version
 all_states = double(max(idx_numComp_sorted{1,1})); % possible states
-    % Note that subplot can't take single values
+% Note that subplot can't take single values
 ai_states(1:all_states) = 2; % specify if states are active (1) or inactive (2)
 ai_states(min(idx_numComp_sorted{1,1}):end) = 1; % specify active states (1)
 time_bins = fps{1}*60*5; % set smoothing window (note assumes a constant frame rate across experiments)
 
+% Smooth Data
 for er = 1:max(experiment_reps) % for each group of experiments
-    clear scrap legend_lines legend_cell
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
-    figure; % make a figure for this experiment 
-    counter = 1; % start counter (counts subplots)
-    for s = 1:2 % for active/inactive
-        counter_2 = 1; % start counter_2 (counts clusters) 
-        for c = find(ai_states == s) % for each cluster 
-            subplot(4,4,counter); hold on; clear scrap; set(gca,'FontName','Calibri');
-            title(horzcat(strings{s},' - ',num2str(counter_2)));
-            
+    
+    for s = 1:2 % for active/inactive clusters
+        counter_2 = 1; % start counter (counts clusters)
+        
+        for c = find(ai_states == s) % for each active or inactive cluster 
             for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
-                if er == 1 % for the WT Experiments
+                clear data;
+                
+%                 % Normalise by Std 
+%                 data = states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
+%                     lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1))==c;
+%                 if sum(sum(data,2)) ~= 0 % if fish use this cluster 
+%                     smoothed_clusters{er,s}(counter_2,:,g) = ...
+%                         smooth((nanmean(data)./nanstd(nanmean(data))),time_bins);
+%                 else % if fish don't 
+%                     smoothed_clusters{er,s}(counter_2,:,g) = zeros(1,size(data,2)); % Fill in Zeros 
+%                 end
+                
+                % Rescale from 0-1 
+                data = states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
+                    lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1))==c;
+                
+                if sum(sum(data,2)) ~= 0 % if fish use this cluster
+                    % Re-Scale to 0-1
+                    data = smooth(nanmean(data),time_bins); 
+                    smoothed_clusters{er,s}(counter_2,:,g) = ...
+                        (data - nanmin(data))/range(data); 
+                else % if fish don't
+                    smoothed_clusters{er,s}(counter_2,:,g) = zeros(1,size(data,2)); % Fill in Zeros
+                end
+                
+            end
+            counter_2 = counter_2 + 1; % add to counter
+        end
+        
+    end
+end
+
+% Calculate y-axis offset 
+for er = 1:max(experiment_reps) % for each group of experiments
+    for s = 1:2 % for active & inactive clusters 
+        smoothed_clusters_offset(er,s) = max(max(max(smoothed_clusters{er,s}(:,(1+time_bins):(end-time_bins),:)))); 
+        smoothed_clusters_offset(er,s) = smoothed_clusters_offset(er,s) + ...
+            (smoothed_clusters_offset(er,s)*0.05); 
+    end
+end
+
+%% Cluster Frequencies Figure 
+
+for er = 1:max(experiment_reps) % for each group of experiments
+    figure; % make a figure for this experiment
+    for s = 1:2 % for active/inactive
+        subplot(1,2,s); hold on; clear scrap; set(gca,'FontName','Calibri');
+        title(horzcat(strings{s},' Clusters'));
+        for c = 1:size(smoothed_clusters{er,s},1) % for each cluster
+            for g = 1:size(smoothed_clusters{er,s},3) % For each group
+                 
+                if er == 1 % for the WT Data
                     legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1),...
-                        smooth(sum(states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
-                        lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1))==c)./...
-                        sum(isnan(states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
-                        lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1)))==0),...
-                        time_bins),'color',cmap_cluster{s}(counter_2,:),'linewidth',1.5);
+                        (smoothed_clusters{er,s}(c,:,g) + (smoothed_clusters_offset(er,s)*(c-1))),...
+                        'color',cmap_cluster{s}(c,:),'linewidth',5);
                 else
                     legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1),...
-                        smooth(sum(states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
-                        lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1))==c)./...
-                        sum(isnan(states{er,1}(i_group_tags(i_experiment_reps == er) == g,...
-                        lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1)))==0),...
-                        time_bins),'color',cmap{set_token}(g,:),'linewidth',1.5);
+                        (smoothed_clusters{er,s}(c,:,g) + (smoothed_clusters_offset(er,s)*(c-1))),...
+                        'color',cmap{set_token}(g,:),'linewidth',5);
                 end
                 
-                % Find the top & bottom
-                % Excluding values that smooth outside of the data
-                scrap(1,g) = max(legend_lines(1,g).YData((1+time_bins):...
-                    (size(legend_lines(1,g).YData,2) - time_bins)));
-                scrap(2,g) = min(legend_lines(1,g).YData((1+time_bins):...
-                    (size(legend_lines(1,g).YData,2) - time_bins)));
-                
-                % Legend
-                if s == 1 && counter_2 == 4 
-                    legend_cell{g} = horzcat(geno_list{set_token}.colheaders{g},', n = ',...
-                        num2str(sum(i_group_tags(i_experiment_reps == er) == g)));
-                    % Append the group size to each group name
-                end
+                plot([lb_merge{er,1}(time_window{set_token}(1)),lb_merge{er,1}(time_window{set_token}(2)+1)],...
+                    [(smoothed_clusters_offset(er,s)*(c-1)),(smoothed_clusters_offset(er,s)*(c-1))],'color','k','linewidth',1);
+               
             end
+        end
+        
+        % Find the top & bottom
+        scrap(1,1) = smoothed_clusters_offset(er,s)*size(smoothed_clusters{er,s},1);
+        scrap(2,1) = 0;
+        
+        % Night patches
+        a = 1;
+        for n = 1:size(nights{set_token},2) % For each night
+            r(a) = rectangle('Position',[lb_merge{er,1}(nights_crop{set_token}(nights{set_token}(n))) ...
+                min(scrap(2,:)) - (min(scrap(2,:))*0.05)...
+                (lb_merge{er,1}(nights_crop{set_token}(nights{set_token}(n))+1)-1) - ...
+                lb_merge{er,1}(nights_crop{set_token}(nights{set_token}(n)))...
+                max(scrap(1,:)) + (max(scrap(1,:))*0.05)],...
+                'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
+            uistack(r(a),'bottom'); % Send to back
+            a = a + 1;
+        end
+        
+        % Axis etc
+        axis([(lb_merge{er,1}(time_window{set_token}(1)) + (1 + time_bins))...
+            (lb_merge{er,1}(time_window{set_token}(2)+1) - time_bins) ...
+            scrap(2,1) scrap(1,1)]);
+        box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
+        xlabel('Time (Days/Nights)','Fontsize',32);
+        set(gca, 'XTick', []);
+        set(gca,'YTick',[]);
+        ylabel('Mean Frequency','Fontsize',32);
+        
+    end
+end
+
+%% Bout Probabilities Histograms WT  
+
+for er = 1 % for the WT experiments
+    figure;
+    set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
+    for s = 1:2 % for active/inactive clusters
+        subplot(2,1,s); hold on; set(gca,'FontName','Calibri');
+        col = 1; % start colour counter
+        for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             
-            % Night patches
-            a = 1;
-            for n = 1:size(nights{set_token},2) % For each night
-                r(a) = rectangle('Position',[lb_merge{er,1}(nights_crop{set_token}(nights{set_token}(n))) ...
-                    min(scrap(2,:)) - (min(scrap(2,:))*0.05)...
-                    (lb_merge{er,1}(nights_crop{set_token}(nights{set_token}(n))+1)-1) - ...
-                    lb_merge{er,1}(nights_crop{set_token}(nights{set_token}(n)))...
-                    max(scrap(1,:)) + (max(scrap(1,:))*0.05)],...
-                    'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
-                uistack(r(a),'bottom'); % Send to back
-                a = a + 1;
-            end
+            % Each Fish
+            plot(nanmean(bout_proportions{s,1}(i_experiment_reps == er & i_group_tags == g,:,...
+                nights_crop{set_token}(nights{set_token})),3)','color',...
+                cmap_2{set_token}(col+1,:)+(1-cmap_2{set_token}(col+1,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+            plot(nanmean(bout_proportions{s,1}(i_experiment_reps == er & i_group_tags == g,:,...
+                days_crop{set_token}(days{set_token})),3)','color',...
+                cmap_2{set_token}(col,:)+(1-cmap_2{set_token}(col,:))*(1-(1/(5)^.5)),'linewidth',1.5);
             
-            % Legend
-            if s == 1 && counter_2 == 4 % For the 4th state - add a legend
-                [~,~,~,~] = legend(legend_cell,'Location','northeast');
-                legend('boxoff');
-            end
+            % Means
+            legend_lines(2,1) = plot(nanmean(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                nights_crop{set_token}(nights{set_token})),3))','color',...
+                cmap_2{set_token}(col+1,:),'linewidth',5);
+            legend_lines(1,1) = plot(nanmean(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                days_crop{set_token}(days{set_token})),3))','color',...
+                cmap_2{set_token}(col,:),'linewidth',5);
             
-            % Axis etc
-            axis([(lb_merge{er,1}(time_window{set_token}(1)) + (1 + time_bins))...
-                (lb_merge{er,1}(time_window{set_token}(2)+1) - time_bins) ...
-                min(scrap(2,:)) - (min(scrap(2,:))*0.05) ...
-                max(scrap(1,:)) + (max(scrap(1,:))*0.05)]);
-            box off; set(gca, 'Layer','top'); set(gca,'Fontsize',12);
-            xlabel('Time (Days/Nights)','Fontsize',12);
-            set(gca, 'XTick', []);
-            yticks(round(max(scrap(1,:)),2,'Significant')); % just label the max frequency 
-            yticklabels(num2str(round(max(scrap(1,:)),2,'Significant')));
-            ylabel('Frequency','Fontsize',12);
-            
-            counter = counter + 1; % (counts subplots)
-            counter_2 = counter_2 + 1; % (counts clusters)
+            col = col + 2;
+        end
+        
+        % Axis etc
+        axis tight
+        box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
+        xlabel(horzcat(strings{s},' Clusters'),'Fontsize',32);
+        set(gca, 'XTick', 1:numComp(s));
+        ylabel('Probability','Fontsize',32);
+        
+        if er == 1 && s == 1
+            [~,icons,plots,~] = legend(legend_lines,'Day','Night');
+            legend('boxoff'); set(icons(1:size(legend_lines,1)),'Fontsize',32) ; set(plots,'LineWidth',5);
         end
     end
 end
 
-clear er scrap legend_lines legend_cell set_token counter counter_2 s c g scrap a n r  
+%% Bout Probabilities Histograms - Conditions 
+
+for er = 2:max(experiment_reps) % for each group of experiments
+    figure;
+    set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
+    for s = 1:2 % for active/inactive clusters
+        subplot(2,2,s); hold on; set(gca,'FontName','Calibri');
+        col = 1; % start colour counter
+        for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
+            % Means
+            legend_lines(1,g) = plot(nanmean(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                days_crop{set_token}(days{set_token})),3))','color',...
+                cmap{set_token}(g,:),'linewidth',5);
+            col = col + 2;
+        end
+        
+        % Axis etc
+        axis tight
+        box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
+        set(gca,'XTick', 1:numComp(s)); 
+        if s == 1
+            ylabel('Probability','Fontsize',32);
+        end
+        
+        % Legend 
+        if s == 2
+            [~,icons,plots,~] = legend(legend_lines,'Day','Night');
+            legend('boxoff'); set(icons(1:size(legend_lines,1)),'Fontsize',32) ; set(plots,'LineWidth',5);
+        end
+        
+        ax = subplot(2,2,s+2); hold on; set(gca,'FontName','Calibri');
+        col = 1; % start colour counter
+        for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
+            % Means
+            legend_lines(2,g) = plot(nanmean(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                nights_crop{set_token}(nights{set_token})),3))','color',...
+                cmap{set_token}(g,:),'linewidth',5);
+            col = col + 2;
+        end
+        
+        % Night patch
+        axis tight
+        a = 1;
+        r(a) = rectangle('Position',[1 0 (numComp(s)-1) ax.YLim(2)],...
+            'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
+        uistack(r(a),'bottom'); % Send to back
+        
+        % Axis etc
+        box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
+        xlabel(horzcat(strings{s},' Clusters'),'Fontsize',32);
+        set(gca, 'XTick', 1:numComp(s));
+        if s == 1
+            ylabel('Probability','Fontsize',32);
+        end
+        
+    end
+end
 
 %% Bouts in PCA Space 
 
