@@ -312,9 +312,10 @@ for er = 1:max(experiment_reps) % for each group of experiments
                 
                 if sum(sum(data,2)) ~= 0 % if fish use this cluster
                     % Re-Scale to 0-1
-                    data = smooth(nanmean(data),time_bins); 
+                    data = smooth(nanmean(data),time_bins)'; % smooth 
                     smoothed_clusters{er,s}(counter_2,:,g) = ...
-                        (data - nanmin(data))/range(data); 
+                        (data - nanmin(data(1,(1+time_bins):(end-time_bins))))/...
+                        range(data(1,(1+time_bins):(end-time_bins))); % scale 
                 else % if fish don't
                     smoothed_clusters{er,s}(counter_2,:,g) = zeros(1,size(data,2)); % Fill in Zeros
                 end
@@ -335,30 +336,36 @@ for er = 1:max(experiment_reps) % for each group of experiments
     end
 end
 
+clear er set_token s counter_2 c g data 
+
 %% Cluster Frequencies Figure 
 
 for er = 1:max(experiment_reps) % for each group of experiments
+    set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
+    
     figure; % make a figure for this experiment
     for s = 1:2 % for active/inactive
         subplot(1,2,s); hold on; clear scrap; set(gca,'FontName','Calibri');
         title(horzcat(strings{s},' Clusters'));
         for c = 1:size(smoothed_clusters{er,s},1) % for each cluster
             for g = 1:size(smoothed_clusters{er,s},3) % For each group
-                 
+                
                 if er == 1 % for the WT Data
-                    legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1),...
+                    legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):...
+                        lb_merge{er,1}(time_window{set_token}(2)+1),...
                         (smoothed_clusters{er,s}(c,:,g) + (smoothed_clusters_offset(er,s)*(c-1))),...
                         'color',cmap_cluster{s}(c,:),'linewidth',5);
                 else
-                    legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):lb_merge{er,1}(time_window{set_token}(2)+1),...
+                    legend_lines(1,g) = plot(lb_merge{er,1}(time_window{set_token}(1)):...
+                        lb_merge{er,1}(time_window{set_token}(2)+1),...
                         (smoothed_clusters{er,s}(c,:,g) + (smoothed_clusters_offset(er,s)*(c-1))),...
                         'color',cmap{set_token}(g,:),'linewidth',5);
-                end
-                
-                plot([lb_merge{er,1}(time_window{set_token}(1)),lb_merge{er,1}(time_window{set_token}(2)+1)],...
-                    [(smoothed_clusters_offset(er,s)*(c-1)),(smoothed_clusters_offset(er,s)*(c-1))],'color','k','linewidth',1);
-               
+                end     
             end
+            
+            plot([lb_merge{er,1}(time_window{set_token}(1)),lb_merge{er,1}(time_window{set_token}(2)+1)],...
+                [(smoothed_clusters_offset(er,s)*(c-1)),(smoothed_clusters_offset(er,s)*(c-1))],'color','k','linewidth',1);
+            
         end
         
         % Find the top & bottom
@@ -392,7 +399,9 @@ for er = 1:max(experiment_reps) % for each group of experiments
 end
 
 %% Bout Probabilities Histograms WT  
-
+    % Plots Individual Fish 
+    % Plots Day vs Night on the Same Axis 
+    
 clear legend_lines
 for er = 1 % for the WT experiments
     figure;
@@ -402,23 +411,23 @@ for er = 1 % for the WT experiments
         col = 1; % start colour counter
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             
-            % Each Fish
+            % Plot each fish 
             plot(nanmean(bout_proportions{s,1}(i_experiment_reps == er & i_group_tags == g,:,...
                 nights_crop{set_token}(nights{set_token})),3)','color',...
-                cmap_2{set_token}(col+1,:)+(1-cmap_2{set_token}(col+1,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+                cmap_2{set_token}(col+1,:)+(1-cmap_2{set_token}(col+1,:))*(1-(1/(5)^.5)),'linewidth',1.5); % night 
             plot(nanmean(bout_proportions{s,1}(i_experiment_reps == er & i_group_tags == g,:,...
                 days_crop{set_token}(days{set_token})),3)','color',...
-                cmap_2{set_token}(col,:)+(1-cmap_2{set_token}(col,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+                cmap_2{set_token}(col,:)+(1-cmap_2{set_token}(col,:))*(1-(1/(5)^.5)),'linewidth',1.5); % day 
             
-            % Means
+            % Plot mean probabilities 
             legend_lines(2,1) = plot(nanmean(nanmean(bout_proportions{s,1}...
                 (i_experiment_reps == er & i_group_tags == g,:,...
                 nights_crop{set_token}(nights{set_token})),3))','color',...
-                cmap_2{set_token}(col+1,:),'linewidth',5);
+                cmap_2{set_token}(col+1,:),'linewidth',5); % night 
             legend_lines(1,1) = plot(nanmean(nanmean(bout_proportions{s,1}...
                 (i_experiment_reps == er & i_group_tags == g,:,...
                 days_crop{set_token}(days{set_token})),3))','color',...
-                cmap_2{set_token}(col,:),'linewidth',5);
+                cmap_2{set_token}(col,:),'linewidth',5); % day 
             
             col = col + 2;
         end
@@ -438,53 +447,77 @@ for er = 1 % for the WT experiments
 end
 
 %% Bout Probabilities Histograms - Conditions 
-
+    % Plots Day & Night on seperate axes 
+    % Plots a mean + SEM 
+    
 clear legend_lines
 for er = 2:max(experiment_reps) % for each group of experiments
     figure;
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
     for s = 1:2 % for active/inactive clusters
-        subplot(2,2,s); hold on; set(gca,'FontName','Calibri');
-        col = 1; % start colour counter
+        subplot(2,2,s); hold on; set(gca,'FontName','Calibri'); clear l_top; 
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             % Means
             legend_lines(1,g) = plot(nanmean(nanmean(bout_proportions{s,1}...
                 (i_experiment_reps == er & i_group_tags == g,:,...
                 days_crop{set_token}(days{set_token})),3))','color',...
                 cmap{set_token}(g,:),'linewidth',5);
-            col = col + 2;
+            % Std 
+            clear l_mean l_std; 
+            l_mean = nanmean(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                days_crop{set_token}(days{set_token})),3)); 
+            l_std = nanstd(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                days_crop{set_token}(days{set_token})),3)); 
+            plot([1:numComp(s) ; 1:numComp(s)],...
+                [(l_mean - l_std) ; l_mean + l_std],'color',...
+                cmap{set_token}(g,:),'linewidth',2.5);
+            % Store Top 
+            l_top(g) = max(l_mean + l_std) + (max(l_mean + l_std)*0.05); 
         end
         
         % Axis etc
-        axis tight
+        axis([1 numComp(s) 0 max(l_top)]);
         box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
         set(gca,'XTick', 1:numComp(s)); 
         if s == 1
             ylabel('Probability','Fontsize',32);
         end
         
-        % Legend 
+        % Legend (here)
         if s == 2
             [~,icons,plots,~] = legend(legend_lines,geno_list{set_token}.colheaders,...
                 'location','northeast');
             legend('boxoff'); set(icons(1:size(legend_lines,1)),'Fontsize',32) ; set(plots,'LineWidth',5);
         end
         
-        ax = subplot(2,2,s+2); hold on; set(gca,'FontName','Calibri');
-        col = 1; % start colour counter
+        subplot(2,2,s+2); hold on; set(gca,'FontName','Calibri'); clear l_top; 
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             % Means
             plot(nanmean(nanmean(bout_proportions{s,1}...
                 (i_experiment_reps == er & i_group_tags == g,:,...
                 nights_crop{set_token}(nights{set_token})),3))','color',...
                 cmap{set_token}(g,:),'linewidth',5);
-            col = col + 2;
+            % Std
+            clear l_mean l_std;
+            l_mean = nanmean(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                nights_crop{set_token}(nights{set_token})),3));
+            l_std = nanstd(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,:,...
+                nights_crop{set_token}(nights{set_token})),3));
+            plot([1:numComp(s) ; 1:numComp(s)],...
+                [(l_mean - l_std) ; l_mean + l_std],'color',...
+                cmap{set_token}(g,:),'linewidth',2.5);
+            % Store Top
+            l_top(g) = max(l_mean + l_std) + (max(l_mean + l_std)*0.05);
         end
         
         % Night patch
-        axis tight
+        axis([1 numComp(s) 0 max(l_top)]);
         a = 1;
-        r(a) = rectangle('Position',[1 0 (numComp(s)-1) ax.YLim(2)],...
+        r(a) = rectangle('Position',[1 0 (numComp(s)-1) max(l_top)],...
             'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
         uistack(r(a),'bottom'); % Send to back
         
@@ -495,7 +528,6 @@ for er = 2:max(experiment_reps) % for each group of experiments
         if s == 1
             ylabel('Probability','Fontsize',32);
         end
-        
     end
 end
 
@@ -518,13 +550,13 @@ end
 density = pdf(GMModels{1},sample); 
 
 % 3D Scatter Plot 
-figure; cols = 1;
+figure; cols = 1; % counts colours 
 for c = min(idx_numComp_sorted{1,1}):max(idx_numComp_sorted{1,1}) % for each active cluster 
     scatter3(sample(sample_tags==c,1),sample(sample_tags==c,2),...
         density(sample_tags==c,1),90,...
         'markerfacecolor',cmap_cluster{1,1}(cols,:),...
         'markeredgecolor','k','linewidth',0.01);
-    cols = cols + 1;
+    cols = cols + 1; % add to colour counter 
     hold on; 
 end
 
@@ -553,18 +585,18 @@ for er = 1:max(experiment_reps) % for each group of experiments
 end
 fish_tags_cm = cumsum(fish_tags_cm); % cumulative number of fish across experiment groups 
 
-% Allocate experiment reps to every active bout 
-experiment_reps_long{1,1} = experiment_tags{1,1}; % temp assign 
-for er = 1:max(experiment_reps) % for each repeat 
+% Allocate experiment reps to every active bout
+experiment_reps_long{1,1} = experiment_tags{1,1}; % temp assign
+for er = 1:max(experiment_reps) % for each repeat
     found = find(experiment_reps == er); % find experiments
     
-    for f = found % for each experiment in the repeat 
-        experiment_reps_long{1,1}(experiment_reps_long{1,1} == f,1) = er; % tag with grouping variable 
-    end 
+    for f = found % for each experiment in the repeat
+        experiment_reps_long{1,1}(experiment_reps_long{1,1} == f,1) = er; % tag with grouping variable
+    end
     
-end 
+end
 
-number = 1000; % number of bouts to sample from each active cluster 
+sample_size = 100; % hard coded sample size 
 counter = 1; % counts active clusters 
 for c = find(ai_states == 1) % for each active bout type
     
@@ -573,11 +605,12 @@ for c = find(ai_states == 1) % for each active bout type
     % Weighted Sample bouts
     [sample,sample_tags] = datasample(...
         wake_cells(idx_numComp_sorted{1,1}==c,:),...
-        number,1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c,:));
+        sample_size,1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c,:));
     sample_tags = sample_tags'; % flip 
     
     % Allocate Space
-    bouts{1,counter} = zeros(number,max(sample(:,3)),'single');
+    bouts{1,counter} = zeros(sample_size,max(sample(:,3)),'single'); % number of bouts x longest (in frames)
+    bouts{2,counter} = bouts{1,counter}; 
     
     % Sample tags
     sample_er = experiment_reps_long{1,1}(idx_numComp_sorted{1,1}==c,:); % experiment groups 
@@ -585,7 +618,7 @@ for c = find(ai_states == 1) % for each active bout type
     sample_et = experiment_tags{1,1}(idx_numComp_sorted{1,1}==c,:); % experiment tags 
     
     % Fill in data
-    for b = 1:number % for each bout
+    for b = 1:sample_size % for each bout
         
         % determine bout indexing numbers
         er = sample_er(sample_tags(b,1)); % sample experiment groups 
@@ -600,6 +633,8 @@ for c = find(ai_states == 1) % for each active bout type
         % Extract raw data
         bouts{1,counter}(b,1:sample(b,3)) = raw_data{er,1}(fish,...
             (sample(b,1)+offset(er,et)):(sample(b,2)+offset(er,et)));
+        bouts{2,counter}(b,1:sample(b,3)) = states{er,1}(fish,...
+            (sample(b,1)+offset(er,et)):(sample(b,2)+offset(er,et)));
     end
     
     counter = counter + 1; % counts active clusters 
@@ -608,30 +643,42 @@ end
 clear er f number counter c sample sample_tags sample_er ...
     sample_fish sample_et b fish et found 
 
-%% Bout Shapes Figure 
+%% Bout Shapes Figure
+
+% 
+for b = 1:size(bouts,2)
+    bs_top(b) = max(bouts{1,b}(:));
+    bs_l(b) = size(bouts{1,b},2);
+end
+
+bs_top = max(bs_top) + (max(bs_top)*0.05);
+bs_l = max(bs_l);
 
 figure; hold on; set(gca,'FontName','Calibri');
 for b = 1:size(bouts,2) % for each active bout type
     
-    legend_lines(b) = shadedErrorBar((0:(size(bouts{1,b},2)+1))/fps{1},[0 nanmean(bouts{1,b}) 0],...
-        [0 nanstd(bouts{1,b})./sqrt(size(bouts{1,b},1)) 0],'lineprops',...
-        {'color',cmap_cluster{1,1}(b,:)}); 
-            
-    legend_lines(b).mainLine.LineWidth = 1.5;
-    legend_cols(b) = legend_lines(b).mainLine; % Store color
-    legend_cell{b} = horzcat('Cluster ',num2str(b)); 
+    % Padding
+    plot([zeros(size(bouts{1,b},1),1) bouts{1,b} zeros(size(bouts{1,b},1),1)]' + bs_top*(b-1),...
+        'color',cmap_cluster{1,1}(b,:)+(1-cmap_cluster{1,1}(b,:))*(1-(1/(1)^.5)));
+    scrap = nanmean(bouts{1,b}); scrap(scrap < 1) = [];
+    plot([0 scrap 0]' + bs_top*(b-1),...
+        'k','linewidth',3);
+    
+    %     % No padding
+    %     plot((bouts{1,b}' + bs_top*(b-1)),'color',...
+    %         cmap_cluster{1,1}(b,:)+(1-cmap_cluster{1,1}(b,:))*(1-(1/(1)^.5)));
+    
+    plot([0 bs_l],[bs_top*(b-1) bs_top*(b-1)],'k','linewidth',1);
     
 end
-box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-axis([0 8/fps{1} ylim]); % hard coded 
-set(gca,'XTick',(1/fps{1}):(2/fps{1}):(8/fps{1})); % hard coded 
-set(gca,'XTickLabels',{(round((1/fps{1}):(2/fps{1}):(8/fps{1}),2,'decimals'))}); % hard coded 
-xlabel('Time (seconds)','Fontsize',32);
-ylabel('Delta Px','Fontsize',32);
-[~,icons,plots,~] = legend(legend_cols,legend_cell,'Location','northeast');
-legend('boxoff'); set(icons(1:size(bouts,2)),'Fontsize',16) ; set(plots,'LineWidth',2);
 
-clear b icons plots legend_lines legend_cols legend_cell  
+box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+axis([1 bs_l ylim]); % hard coded
+set(gca,'XTickLabels',{(round(xticks/fps{1},2,'decimals'))}); % hard coded
+xlabel('Time (seconds)','Fontsize',32);
+set(gca,'YTick',[]); 
+ylabel('Delta Px','Fontsize',32);
+
 
 %% Hierachical Sequences (Local Version) 
     %https://github.com/aexbrown/Behavioural_Syntax
