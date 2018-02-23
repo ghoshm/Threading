@@ -338,7 +338,7 @@ end
 
 clear er set_token s counter_2 c g data 
 
-%% Cluster Frequencies Figure 
+%% Cluster Frequencies Figure (Run one @ A Time) 
 
 for er = 1:max(experiment_reps) % for each group of experiments
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
@@ -781,6 +781,8 @@ clear compVec gTermCell grammar totSavings
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\Compression_Results_Final.mat')
 
 %% Constructing a common Grammar 
+    % Note (180223): create a uniqueSeqs for each shuffle 
+    % Note (180223): can nest the two bits here inside one loop  
 
 tic % 19s for 629 fish
 % Merge all the grammers and keep only unique elements 
@@ -810,6 +812,7 @@ end
 clear tc nan_locs 
 
 %% Sequence Lengths 
+    % Note (180223): can nest this inside a loop for each shuffle  
 
 seq_lengths{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % tc - seqs x 1 
 seq_lengths{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % tc - seqs x 1 
@@ -825,6 +828,8 @@ end
 clear tc s 
 
 %% Sequence Lengths Figure 
+    % Note (180223): fit a pdf (? Kernel = 3) for each shuffles sequence 
+    % lengths & then plot all of them on the same plot. 
 
 figure; subplot(1,2,1); box off; set(gca, 'Layer','top'); 
 set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
@@ -842,6 +847,7 @@ xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % 
 axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65])
 
 %% Construct Grammar Matrix  
+    % Note (180223): only need the real grammar matrix 
 
 grammar_mat{1,1} = zeros(size(uniqueSeqs{1,1},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
 grammar_mat{1,2} = zeros(size(uniqueSeqs{1,2},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
@@ -856,6 +862,8 @@ for tc = 1:2
 end
 
 %% "Translating" between the two grammars 
+    % Note (180223): don't need this anymore 
+
 [~,grammar_mat_trans] = ismember(grammar_mat{1,1},grammar_mat{1,2},'rows'); % real sequences x 1 
 
 grammar_mat{1,1}(grammar_mat{1,1}==0) = NaN; % replace zeros with nan 
@@ -872,6 +880,7 @@ set(ax,'CDataMapping','direct');
 c = colorbar; c.Label.String = 'Cluster'; 
 xlabel('Position in Sequence','Fontsize',32); 
 ylabel('Sequence','Fontsize',32);
+
 clear ax grammar_mat_sorted c 
 
 %% Compressibility 
@@ -886,6 +895,7 @@ end
 clear f 
 
 %% Compressibility N-Way Anova  
+    % Note (180223): compare data points from all shuffles 
 
 for er = 1:max(i_experiment_reps) % for each group of experiments
     
@@ -953,6 +963,9 @@ end
 
 clear er set_token g scrap counter 
 
+%% Add Relative Compressibility Figure 
+    % To highlight behavioural structure 
+
 %% Grammar in Time 
 
 % Convert data to singles 
@@ -1007,8 +1020,8 @@ end
 % clear tc f t_one t_two i c 
 
 %% Load Grammar Freqs From Legion 
-
-% Note should remove gFreq 
+    % Note (180223): should remove gFreq 
+    % Note (180223): should only count from the real grammar  
 
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\Grammar_Results_Final.mat',...
     'gCount','gFreq')
@@ -1155,6 +1168,8 @@ clear ax er
 % clear er e f 
 
 %% Normalise Counts by shuffled data 
+    % Note (180223): should z-score real vs shuffled data 
+
 gCount_norm = gCount_merge(1,1); % sequences x time windows x fish
 
 for s = 1:size(grammar_mat{1,1},1) % for each real sequence
@@ -1167,9 +1182,8 @@ end
 %% Identifying Interesting Sequences (is) 
 
 % 180215 Notes 
-    % 1. Need to normalise for chance 
-    % 2. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-data.html#d119e2598
-    % 3. https://uk.mathworks.com/help/stats/fitcdiscr.html
+    % 1. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-data.html#d119e2598
+    % 2. https://uk.mathworks.com/help/stats/fitcdiscr.html
     
 % Settings 
 comps = 100; % number of sequences to identify 
@@ -1225,42 +1239,6 @@ end
 
 clear er set_token data tw 
 
-%% WT Day Night Score 
-    % Currently an alternative to the PCA approach for the WT data 
-    
-% dn_score = cell(1,2); % allocate - high dn score = day, low dn_score = night (1 -> -1)
-% dn_score{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % {t/c} - seqs x 1
-% dn_score{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % {t/c} - seqs x 1
-% 
-% for tc = 1:2 % for data/control
-%     for i = 1:size(dn_score{1,tc},1) % for each sequence
-%         dn_score{1,tc}(i,1) = ...
-%             sum(nanmean(gFreq_merge{1,tc}(i,days_crop{1}(days{1}),i_experiment_reps==1),3)) - ...
-%             sum(nanmean(gFreq_merge{1,tc}(i,nights_crop{1}(nights{1}),i_experiment_reps==1),3));
-%     end
-% end
-% 
-% dn_count(:,1) = nanmean(nanmean(gCount_merge{1,1}(:,days_crop{1}(days{1}),i_experiment_reps==1),2),3); 
-% dn_count(:,2) = nanmean(nanmean(gCount_merge{1,1}(:,nights_crop{1}(nights{1}),i_experiment_reps==1),2),3); 
-% 
-% clear exampleSeqs scrap; % number of comparisons to show
-% [~,exampleSeqs(1:comps/2)] = maxk(dn_count(:,1).*dn_score{1,1},comps/2); % find most day like sequence 
-% [~,scrap] = mink(dn_count(:,2).*dn_score{1,1},comps/2); % find most night like sequences 
-% exampleSeqs = [exampleSeqs flip(scrap)']; clear scrap; 
-% 
-% scatter(dn_count(:,1),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(1,:),...
-%     'markeredgecolor',cmap_2{1}(1,:)); 
-% hold on; scatter(dn_count(:,2),dn_score{1,1},36,'markerfacecolor',cmap_2{1}(2,:),...
-%     'markeredgecolor',cmap_2{1}(2,:)); 
-% scatter(dn_count(exampleSeqs(1:comps/2),1),dn_score{1,1}(exampleSeqs(1:comps/2),1),36,'markerfacecolor',cmap_2{1}(1,:),...
-%     'markeredgecolor',[1 0.5 0])
-% scatter(dn_count(exampleSeqs((comps/2)+1:end),2),dn_score{1,1}(exampleSeqs((comps/2)+1:end),1),36,'markerfacecolor',cmap_2{1}(2,:),...
-%     'markeredgecolor',[1 0.5 0])
-
-%% Set WT Interesting Sequences to be based on dn_score/probability 
-
-% comps_v{1,1}(:,1) = exampleSeqs; 
-
 %% Interesting Sequences Figure 
 
 figure; 
@@ -1280,6 +1258,7 @@ for er = 1:max(experiment_reps) % for each group of experiments
 end
 
 %% Grammar Comparison Figure  
+    % Note (180223): should plot z-scores  
 
 % Settings
 cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; % merged colormap
@@ -1538,38 +1517,3 @@ xlabel('Melatonin','Fontsize',32);
 % imAlpha(tril(scrap(i_experiment_reps == er,i_experiment_reps == er)) > 0) = 0; % find nan values 
 % imagesc(scrap(i_experiment_reps == er,i_experiment_reps == er),'AlphaData',imAlpha);
 % colormap(cmap_cluster_merge); colorbar; 
-
-%% Old Working 
-
-
-%% Grammar in time - WT Example Sequences  
-
-% comps_p = 3; % number of comparisons to show
-% 
-% % randomly choose a fish who all both sequences 
-% exampleFish = datasample(find(sum(common_table(exampleSeqs,i_experiment_reps == 1))==...
-%     size(exampleSeqs,2)),1,'replace',false); 
-% 
-% % Figure 
-% %figure; cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; 
-% for e = 1:size(exampleSeqs,2) % for each example sequence 
-%     subplot(2,comps,e);     
-%     Tlocs = datasample(strfind(threads{exampleFish,1,1}',uniqueSeqs{1,1}{exampleSeqs(e),1}),...
-%         1,'replace',false); 
-%     Rlocs = threads{exampleFish,2,1}(Tlocs,1):...
-%         threads{exampleFish,2,1}(Tlocs+(size(uniqueSeqs{1,1}{exampleSeqs(e),1},2)-1),2); 
-%     Rlocs = Rlocs + offset(1,i_experiment_tags(exampleFish)); 
-%     
-%     ax = imagesc([1,size(Rlocs,2)],[0,max(raw_data{1,1}(exampleFish,Rlocs))],...
-%         repmat(states{1,1}(exampleFish,Rlocs),[max(raw_data{1,1}(exampleFish,Rlocs)),1]));
-%     hold on; colormap(cmap_cluster_merge); set(gca,'Ydir','Normal'); set(ax,'CDataMapping','direct'); 
-%     plot(raw_data{1,1}(exampleFish,Rlocs),'k','linewidth',3); hold on; 
-%     axis([1 size(Rlocs,2) 0 (max(raw_data{1,1}(exampleFish,Rlocs)) + 0.5)]);
-%     set(gca,'XTickLabels',xticks/fps{1})
-%     box off; set(gca,'FontName','Calibri'); set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
-%     xlabel('Time (Seconds)'); 
-%     ylabel('Delta Px'); 
-%     title(horzcat('dn Score = ',num2str(dn_score{1,1}(exampleSeqs(e),1)))); 
-% end 
-% 
-% clear ax exampleFish 
