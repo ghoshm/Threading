@@ -398,11 +398,12 @@ for er = 1:max(experiment_reps) % for each group of experiments
     end
 end
 
+clear er set_token s c g legend_lines scrap a n r 
+
 %% Bout Probabilities Histograms WT  
     % Plots Individual Fish 
     % Plots Day vs Night on the Same Axis 
     
-clear legend_lines
 for er = 1 % for the WT experiments
     figure;
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
@@ -446,11 +447,12 @@ for er = 1 % for the WT experiments
     end
 end
 
+clear er set_token s col g legend_lines icons plots 
+
 %% Bout Probabilities Histograms - Conditions 
     % Plots Day & Night on seperate axes 
     % Plots a mean + SEM 
     
-clear legend_lines
 for er = 2:max(experiment_reps) % for each group of experiments
     figure;
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
@@ -531,6 +533,8 @@ for er = 2:max(experiment_reps) % for each group of experiments
     end
 end
 
+clear er set_token s g legend_lines l_mean l_std l_top icons plots a r 
+
 %% Bouts in PCA Space 
 
 % Load Active GMModel 
@@ -586,73 +590,123 @@ end
 fish_tags_cm = cumsum(fish_tags_cm); % cumulative number of fish across experiment groups 
 
 % Allocate experiment reps to every active bout
-experiment_reps_long{1,1} = experiment_tags{1,1}; % temp assign
-for er = 1:max(experiment_reps) % for each repeat
-    found = find(experiment_reps == er); % find experiments
-    
-    for f = found % for each experiment in the repeat
-        experiment_reps_long{1,1}(experiment_reps_long{1,1} == f,1) = er; % tag with grouping variable
+% experiment_reps_long{1,1} = experiment_tags{1,1}; % temp assign
+% for er = 1:max(experiment_reps) % for each repeat
+%     found = find(experiment_reps == er); % find experiments
+%     
+%     for f = found % for each experiment in the repeat
+%         experiment_reps_long{1,1}(experiment_reps_long{1,1} == f,1) = er; % tag with grouping variable
+%     end
+%     
+% end
+
+clear er  
+
+%% Sampling from a single fish 
+sample_size = 100; % hard coded sample size 
+
+% Sample a fish with enough bouts in each cluster 
+a = 0; 
+while a == 0
+    f = datasample(find(i_experiment_reps == 1),1); % sample a WT fish
+    for c = find(ai_states == 1) % for each active cluster
+        if sum(fish_tags{1,1} == f & idx_numComp_sorted{1,1} == c) < sample_size
+            % if there are too few of this bout type 
+           continue % select another fish 
+        end 
     end
-    
+    a = 1; 
 end
 
-sample_size = 100; % hard coded sample size 
 counter = 1; % counts active clusters 
 for c = find(ai_states == 1) % for each active bout type
     
-    clear sample sample_tags sample_er sample_fish sample_et 
+    clear sample 
     
     % Weighted Sample bouts
-    [sample,sample_tags] = datasample(...
-        wake_cells(idx_numComp_sorted{1,1}==c,:),...
-        sample_size,1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c,:));
-    sample_tags = sample_tags'; % flip 
+    [sample,~] = datasample(...
+        wake_cells(fish_tags{1,1}==f & idx_numComp_sorted{1,1}==c,:),...
+        sample_size,1,'replace',false,'weights',P{1,1}(fish_tags{1,1}==f & idx_numComp_sorted{1,1}==c,:));
     
     % Allocate Space
     bouts{1,counter} = zeros(sample_size,max(sample(:,3)),'single'); % number of bouts x longest (in frames)
-    bouts{2,counter} = bouts{1,counter}; 
-    
-    % Sample tags
-    sample_er = experiment_reps_long{1,1}(idx_numComp_sorted{1,1}==c,:); % experiment groups 
-    sample_fish = fish_tags{1,1}(idx_numComp_sorted{1,1}==c,:); % fish i.d.
-    sample_et = experiment_tags{1,1}(idx_numComp_sorted{1,1}==c,:); % experiment tags 
-    
+    bouts{2,counter} = bouts{1,counter}; % states (just to check you get the correct raw data)  
+   
     % Fill in data
     for b = 1:sample_size % for each bout
         
-        % determine bout indexing numbers
-        er = sample_er(sample_tags(b,1)); % sample experiment groups 
-        if er == 1 % for the first experiment group
-            fish = sample_fish(sample_tags(b,1)); % sample fish tags 
-        else % for other experiment groups 
-            fish = sample_fish(sample_tags(b,1)) - fish_tags_cm(er - 1); 
-            % determine correct fish id
-        end
-        et = find(find(experiment_reps == er) == sample_et(sample_tags(b,1))); % sample experiment tags 
-        
         % Extract raw data
-        bouts{1,counter}(b,1:sample(b,3)) = raw_data{er,1}(fish,...
-            (sample(b,1)+offset(er,et)):(sample(b,2)+offset(er,et)));
-        bouts{2,counter}(b,1:sample(b,3)) = states{er,1}(fish,...
-            (sample(b,1)+offset(er,et)):(sample(b,2)+offset(er,et)));
+        bouts{1,counter}(b,1:sample(b,3)) = raw_data{i_experiment_reps(f),1}(f,...
+            (sample(b,1)+offset(i_experiment_reps(f),i_experiment_tags(f))):...
+            (sample(b,2)+offset(i_experiment_reps(f),i_experiment_tags(f))));
+        bouts{2,counter}(b,1:sample(b,3)) = states{i_experiment_reps(f),1}(f,...
+            (sample(b,1)+offset(i_experiment_reps(f),i_experiment_tags(f))):...
+            (sample(b,2)+offset(i_experiment_reps(f),i_experiment_tags(f))));
     end
     
     counter = counter + 1; % counts active clusters 
 end
 
-clear er f number counter c sample sample_tags sample_er ...
-    sample_fish sample_et b fish et found 
+clear a f c counter sample b 
+
+%% Sampling From Multiple Fish 
+% sample_size = 100; % hard coded sample size 
+% counter = 1; % counts active clusters 
+% for c = find(ai_states == 1) % for each active bout type
+%     
+%     clear sample sample_tags sample_er sample_fish sample_et 
+%     
+%     % Weighted Sample bouts
+%     [sample,sample_tags] = datasample(...
+%         wake_cells(idx_numComp_sorted{1,1}==c,:),...
+%         sample_size,1,'replace',false,'weights',P{1,1}(idx_numComp_sorted{1,1}==c,:));
+%     sample_tags = sample_tags'; % flip 
+%     
+%     % Allocate Space
+%     bouts{1,counter} = zeros(sample_size,max(sample(:,3)),'single'); % number of bouts x longest (in frames)
+%     bouts{2,counter} = bouts{1,counter}; 
+%     
+%     % Sample tags
+%     sample_er = experiment_reps_long{1,1}(idx_numComp_sorted{1,1}==c,:); % experiment groups 
+%     sample_fish = fish_tags{1,1}(idx_numComp_sorted{1,1}==c,:); % fish i.d.
+%     sample_et = experiment_tags{1,1}(idx_numComp_sorted{1,1}==c,:); % experiment tags 
+%     
+%     % Fill in data
+%     for b = 1:sample_size % for each bout
+%         
+%         % determine bout indexing numbers
+%         er = sample_er(sample_tags(b,1)); % sample experiment groups 
+%         if er == 1 % for the first experiment group
+%             fish = sample_fish(sample_tags(b,1)); % sample fish tags 
+%         else % for other experiment groups 
+%             fish = sample_fish(sample_tags(b,1)) - fish_tags_cm(er - 1); 
+%             % determine correct fish id
+%         end
+%         et = find(find(experiment_reps == er) == sample_et(sample_tags(b,1))); % sample experiment tags 
+%         
+%         % Extract raw data
+%         bouts{1,counter}(b,1:sample(b,3)) = raw_data{er,1}(fish,...
+%             (sample(b,1)+offset(er,et)):(sample(b,2)+offset(er,et)));
+%         bouts{2,counter}(b,1:sample(b,3)) = states{er,1}(fish,...
+%             (sample(b,1)+offset(er,et)):(sample(b,2)+offset(er,et)));
+%     end
+%     
+%     counter = counter + 1; % counts active clusters 
+% end
+
+% clear er f number counter c sample sample_tags sample_er ...
+%     sample_fish sample_et b fish et found 
 
 %% Bout Shapes Figure
 
-% 
-for b = 1:size(bouts,2)
-    bs_top(b) = max(bouts{1,b}(:));
-    bs_l(b) = size(bouts{1,b},2);
+% Plotting variables 
+for b = 1:size(bouts,2) % for each cluster 
+    bs_top(b) = max(bouts{1,b}(:)); % find the max value 
+    bs_l(b) = size(bouts{1,b},2); % find the max length 
 end
 
-bs_top = max(bs_top) + (max(bs_top)*0.05);
-bs_l = max(bs_l);
+bs_top = max(bs_top) + (max(bs_top)*0.05); % add a bit of space
+bs_l = max(bs_l); % max length 
 
 figure; hold on; set(gca,'FontName','Calibri');
 for b = 1:size(bouts,2) % for each active bout type
@@ -668,17 +722,19 @@ for b = 1:size(bouts,2) % for each active bout type
     %     plot((bouts{1,b}' + bs_top*(b-1)),'color',...
     %         cmap_cluster{1,1}(b,:)+(1-cmap_cluster{1,1}(b,:))*(1-(1/(1)^.5)));
     
-    plot([0 bs_l],[bs_top*(b-1) bs_top*(b-1)],'k','linewidth',1);
+    plot([1 bs_l + 2],[bs_top*(b-1) bs_top*(b-1)],'k','linewidth',1);
     
 end
 
 box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-axis([1 bs_l ylim]); % hard coded
-set(gca,'XTickLabels',{(round(xticks/fps{1},2,'decimals'))}); % hard coded
+axis([1 bs_l 0 bs_top*(size(bouts,2))]); % hard coded
+set(gca,'XTick',2:2:bs_l); 
+set(gca,'XTickLabels',{(round((1:2:bs_l)/fps{1},2,'decimals'))}); % hard coded
 xlabel('Time (seconds)','Fontsize',32);
 set(gca,'YTick',[]); 
 ylabel('Delta Px','Fontsize',32);
 
+clear b bs_top bs_l b scrap 
 
 %% Hierachical Sequences (Local Version) 
     %https://github.com/aexbrown/Behavioural_Syntax
