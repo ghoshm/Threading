@@ -774,103 +774,108 @@ clear b bs_top bs_l b scrap
 % toc
 
 %% Load in Legion Data (START HERE)
-% Ease memory 
-clear raw_data_all cells 
 
-clear compVec gTermCell grammar totSavings
-load('D:\Behaviour\SleepWake\Re_Runs\Threading\Compression_Results_Final.mat')
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180223.mat'); 
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Results_Final.mat',...
+    'gTermCell','totSavings'); 
+
+%% Sequence Lengths 
+
+% Find Sequence Lengths 
+for tc = 1:size(gTermCell,2) % for real & shuffled data
+    for f = 1:size(gTermCell,1) % for each fish
+        seq_lengths{f,tc} = zeros(size(gTermCell{f,tc},1),1,'single'); % fish x shuffles {sequences x 1} 
+        grammar_size(f,tc) = size(gTermCell{f,tc},1); % fish x shuffles 
+        
+        for s = 1:size(gTermCell{f,tc},1) % for each sequence
+            seq_lengths{f,tc}(s,1) = size(gTermCell{f,tc}{s,1},2); % find it's length
+        end
+        
+        sq_l(f,tc,:) = minmax(seq_lengths{f,tc}')'; % fish x shuffles x min/max 
+        
+    end
+end
+    
+% Fit pdfs  
+for tc = 1:size(gTermCell,2) % for real vs shuffled data
+    for f = 1:size(gTermCell,1) % for each fish
+        pd = fitdist(seq_lengths{f,tc},'kernel','Width',1); % Fit pdf
+        seq_lengths_pd(f,:,tc) = pdf(pd,min(sq_l(:)):max(sq_l(:))); % store
+    end
+end
+
+clear tc f s sq_l pd 
+
+%% Sequence Lengths Figure - WT 
+    
+clear legend_lines; 
+figure; box off; set(gca, 'Layer','top'); hold on; 
+set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
+for tc = 2:size(seq_lengths_pd,3) % for each shuffle 
+    legend_lines(2) = plot(2:(size(seq_lengths_pd,2)+1),...
+        nanmean(seq_lengths_pd(:,:,tc)),...
+        'color','k','linewidth',3); % plot an average  
+end
+legend_lines(1) = plot(2:(size(seq_lengths_pd,2)+1),...
+    nanmean(seq_lengths_pd(:,:,1)),...
+    'color',cmap{1,1},'linewidth',3); % plot the real data
+
+% Settings 
+[~,icons,plots,~] = legend(legend_lines,'Real Data','Shuffled Data',...
+    'location','northeast');
+legend('boxoff'); set(icons(1:size(legend_lines,1)),'Fontsize',32) ; set(plots,'LineWidth',5);
+xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
+axis([2 (size(seq_lengths_pd,2)+1) ylim]); 
 
 %% Constructing a common Grammar 
-    % Note (180223): create a uniqueSeqs for each shuffle 
-    % Note (180223): can nest the two bits here inside one loop  
-
-tic % 19s for 629 fish
-% Merge all the grammers and keep only unique elements 
-for tc = 1:2 % for real vs shuffled data 
+    % Roughly 1 minute per shuffle 
+    
+tic
+% Merge all the grammers and keep only unique elements
+for tc = 1:size(gTermCell,2) % for real & shuffled data
+    uniqueSeqs{1,tc} = []; % structure
+    
     for f = 1:size(gTermCell,1) % for each fish
         % append grammar terminals to the total set
         uniqueSeqs{1,tc} = vertcat(uniqueSeqs{1,tc}, gTermCell{f,tc});
     end
+    
+    % Determine unique sequences from this (larger) set
+    [uniqueSeqs{1,tc}, ~] = countUniqueRows(uniqueSeqs{1,tc});
+    
+    % Report Progress
+    disp(horzcat('Merged Grammar ',num2str(tc)));
+    
 end
-disp('Merged all grammers'); 
-toc 
+disp('Merged all grammers');
+toc
 
-tic % 106s for 629 fish 
-% Determine unique sequences from larger set
-[uniqueSeqs{1,1}, ~] = countUniqueRows(uniqueSeqs{1,1});
-[uniqueSeqs{1,2}, ~] = countUniqueRows(uniqueSeqs{1,2});
-disp('Determined unique sequences'); 
-toc 
+clear tc f gTermCell
 
 %% Remove Sequences with NaN (tagged as zeros) 
 
-for tc = 1:2 % for real vs shuffled data 
+for tc = 1:size(uniqueSeqs,2) % for real vs shuffled data 
     nan_locs = cellfun(@(s) ismember(0, s), uniqueSeqs{1,tc}); % find sequences with nans 
     uniqueSeqs{1,tc}(nan_locs,:) = []; % remove these 
+    clear nan_locs 
 end 
 
 clear tc nan_locs 
 
-%% Sequence Lengths 
-    % Note (180223): can nest this inside a loop for each shuffle  
+%% Construct WT Grammar Matrix  
 
-seq_lengths{1,1} = zeros(size(uniqueSeqs{1,1},1),1,'single'); % tc - seqs x 1 
-seq_lengths{1,2} = zeros(size(uniqueSeqs{1,2},1),1,'single'); % tc - seqs x 1 
-
-for tc = 1:2 % for real vs shuffled data
+grammar_mat{1,1} = nan(size(uniqueSeqs{1,1},1),size(seq_lengths_pd,2)+1,'single'); % sequences x max length 
     
-    for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-        seq_lengths{1,tc}(s,1) = size(uniqueSeqs{1,tc}{s,1},2); % find it's length
-    end
-    
+for s = 1:size(uniqueSeqs{1,1},1) % for each sequence
+    grammar_mat{1,1}(s,1:size(uniqueSeqs{1,1}{s,1},2)) = uniqueSeqs{1,1}{s,1}; % fill in sequence
 end
 
-clear tc s 
-
-%% Sequence Lengths Figure 
-    % Note (180223): fit a pdf (? Kernel = 3) for each shuffles sequence 
-    % lengths & then plot all of them on the same plot. 
-
-figure; subplot(1,2,1); box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
-title('Data','Fontsize',32); hold on; 
-histogram(seq_lengths{1,1},'Normalization','probability','EdgeColor','none',...
-    'FaceColor',cmap{1}(1,:));
-xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
-axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65]) % hard coded 
-subplot(1,2,2); box off; set(gca, 'Layer','top'); 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format 
-title('Shuffled Data','Fontsize',32); hold on; 
-histogram(seq_lengths{1,2},'Normalization','probability','EdgeColor','none',...
-    'FaceColor',cmap{1}(1,:));
-xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
-axis([(min([seq_lengths{1,1} ; seq_lengths{1,2}])-0.5) (max([seq_lengths{1,1} ; seq_lengths{1,2}])+0.5) 0 0.65])
-
-%% Construct Grammar Matrix  
-    % Note (180223): only need the real grammar matrix 
-
-grammar_mat{1,1} = zeros(size(uniqueSeqs{1,1},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
-grammar_mat{1,2} = zeros(size(uniqueSeqs{1,2},1),max(seq_lengths{1,1}),'single'); % sequences x max length 
-    % Note that the shuffled matrix (grammar_mat{1,2}, must have the same
-    % number of columns as the real data) also ismember won't take nan
-    % values, therefore these are zero for now 
-    
-for tc = 1:2
-    for s = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-        grammar_mat{1,tc}(s,1:size(uniqueSeqs{1,tc}{s,1},2)) = uniqueSeqs{1,tc}{s,1}; % fill in sequence
-    end
-end
-
-%% "Translating" between the two grammars 
-    % Note (180223): don't need this anymore 
-
-[~,grammar_mat_trans] = ismember(grammar_mat{1,1},grammar_mat{1,2},'rows'); % real sequences x 1 
-
-grammar_mat{1,1}(grammar_mat{1,1}==0) = NaN; % replace zeros with nan 
-grammar_mat{1,2}(grammar_mat{1,2}==0) = NaN; % replace zeros with nan 
+clear s 
 
 %% Grammar Matrix Figure 
-
+    % Note: 180226 - Maybe the most interesting figure is actually a
+    % grammar with only the sequences above chance? 
+    
 figure; 
 grammar_mat_sorted = flip(sortrows(grammar_mat{1,1})); % sort rows of grammar_mat  
 ax = imagesc(grammar_mat_sorted,'AlphaData',isnan(grammar_mat_sorted)==0); % imagesc with nan values in white 
@@ -887,61 +892,31 @@ clear ax grammar_mat_sorted c
 % The compressibility of a sequence of uncompressed length l is given by the sum of the savings S 
 % at each iteration divided by l (Gomez-Marin et al.,2016) 
 
-compressibility = zeros(size(threads,1),2,'single'); % fish x t/c
+compressibility = zeros(size(totSavings),'single'); % fish x t/c
+compressibility_rel = zeros(size(totSavings,1),(size(totSavings,2)-1),'single'); % fish x shuffles 
+
 for f = 1:size(threads,1) % for each fish 
-    compressibility(f,:) = totSavings(f,:)./size(threads{f,1,1},1);
+    compressibility(f,:) = totSavings(f,:)./size(threads{f,1,1},1); % calculate compressibility 
+    compressibility_rel(f,:) = compressibility(f,1) - compressibility(f,2:end); % relative compressibility 
 end 
 
 clear f 
-
-%% Compressibility N-Way Anova  
-    % Note (180223): compare data points from all shuffles 
-
-for er = 1:max(i_experiment_reps) % for each group of experiments
-    
-    clear anova_group anova_tc anova_experiment data
-    
-    % Grouping Variables
-    anova_group = repmat(i_group_tags(i_experiment_reps==er),[2,1])'; % groups
-    anova_tc = ones(size(anova_group)); % real vs shuffled data
-    anova_tc(1:size(i_group_tags(i_experiment_reps==er),1)) = 0;
-    anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),[2,1])'; % experiments
-    
-    % Data to Compare 
-    if er == 1 % WT - compare real vs shuffled data 
-        data = compressibility(i_experiment_reps==er,:); % grab data
-        data = data(:)'; % vectorise
-    else % compare difference in compression between groups 
-        data = compressibility(i_experiment_reps==er,1) - ... 
-            compressibility(i_experiment_reps==er,2); % difference in compressibility 
-        data = data(:)'; % vectorise 
-        anova_group = anova_group(1:size(data,2)); % trim  
-        anova_tc = anova_tc(1:size(data,2)); % trim 
-        anova_experiment = anova_experiment(1:size(data,2)); % trim 
-    end
-    
-    % Comparison 
-    [twa.compress.p{1,er},~,twa.compress.stats{1,er}] = anovan(data,...
-        {anova_group,anova_tc,anova_experiment},...
-        'display','off','model','full');
-    
-end
-
-clear er anova_group anova_tc anova_experiment data
 
 %% Compressibility Figure 
 
 figure;
 for er = 1:max(experiment_reps) % for each group of experiments
     set_token = find(experiment_reps == er,1,'first'); % settings
-    subplot(2,3,er); counter = 1; clear scrap; 
-    hold on; set(gca,'FontName','Calibri');
+    subplot(2,3,er); counter = 1; % counts groups for plots
+    hold on; set(gca,'FontName','Calibri'); clear scrap;
     
     for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
-        plot([counter,counter+1],compressibility(i_experiment_reps == er & i_group_tags == g,:)',...
+        clear data; 
+        data = [repmat(compressibility(i_experiment_reps == er & i_group_tags == g,1),(size(compressibility,2)-1),1) ...
+            reshape(compressibility(i_experiment_reps == er & i_group_tags == g,2:end),[],1)]; 
+        plot([counter,counter+1],data,...
             'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-        errorbar([counter,counter+1],nanmean(compressibility(i_experiment_reps == er & i_group_tags == g,:)),...
-            nanstd(compressibility(i_experiment_reps == er & i_group_tags == g,:)),...
+        errorbar([counter,counter+1],nanmean(data),nanstd(data),...
             'color',cmap{set_token}(g,:),'linewidth',3);
         counter = counter + 2; % add to counter
         
@@ -961,10 +936,81 @@ for er = 1:max(experiment_reps) % for each group of experiments
         (min(scrap(1,:)) - (min(scrap(1,:))*0.05)) (max(scrap(2,:)) + (max(scrap(2,:))*0.05))]);
 end
 
-clear er set_token g scrap counter 
+clear er set_token g scrap counter data 
 
-%% Add Relative Compressibility Figure 
-    % To highlight behavioural structure 
+%% Relative Compressibility Figure 
+    
+figure;
+for er = 1:max(experiment_reps) % for each group of experiments
+    set_token = find(experiment_reps == er,1,'first'); % settings
+    ax = subplot(2,3,er);
+    hold on; set(gca,'FontName','Calibri'); clear scrap;
+    
+    for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
+        clear data;
+        data = compressibility_rel(i_experiment_reps == er & i_group_tags == g,:);
+        % To use a mean for each fish instead use
+        %data = nanmean(compressibility_rel(i_experiment_reps == er & i_group_tags == g,:),2);
+        
+        spread_cols = plotSpread((data(:)')',...
+            'distributionColors',cmap{set_token}(g,:),'showMM',2,'XValue',g);
+        set(findall(ax,'type','line'),'markersize',15); % change marker sizes
+        spread_cols{2}.LineWidth = 3; spread_cols{2}.Color = 'k'; % Change Mean properties
+        spread_cols{2}.MarkerSize = 12;
+        
+        scrap(1,g) = min(min(data));
+        scrap(2,g) = max(max(data));
+    end
+    
+    box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+    if er == 1
+        set(gca, 'XTick', [1 2]); % set X-ticks
+        set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels
+    else
+        set(gca,'XTick',1:max(i_group_tags(i_experiment_reps == er)));
+        set(gca,'XTickLabels',geno_list{set_token}.colheaders); % X Labels
+    end
+    ylabel({'Relative' ; 'Compressibility'},'Fontsize',32); % Y Labels
+    axis([0.5 (max(i_group_tags(i_experiment_reps == er))+.5) ...
+        (min(scrap(1,:)) - (min(scrap(1,:))*0.05)) (max(scrap(2,:)) + (max(scrap(2,:))*0.05))]);
+end
+
+clear er set_token g scrap data
+
+%% Compressibility N-Way Anova
+
+for er = 1:max(i_experiment_reps) % for each group of experiments
+    
+    clear anova_group anova_tc anova_experiment data
+    
+    % Grouping Variables
+    anova_group = repmat(i_group_tags(i_experiment_reps==er),...
+        [size(threads,3),1])'; % groups
+    anova_tc = ones(size(anova_group)); % real (0) vs shuffled data (1) 
+    anova_tc(1:size(i_group_tags(i_experiment_reps==er),1)) = 0;
+    anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),...
+        [size(threads,3),1])'; % experiments
+    
+    % Data to Compare 
+    if er == 1 % WT - compare real vs shuffled data 
+        data = compressibility(i_experiment_reps==er,:); % grab data
+        data = data(:)'; % vectorise
+    else % compare relative compressibility 
+        data = compressibility_rel(i_experiment_reps == er,:); 
+        data = data(:)'; % vectorise 
+        anova_group = anova_group(1:size(data,2)); % trim out real data indicies  
+        anova_experiment = anova_experiment(1:size(data,2)); % trim 
+        anova_tc(anova_tc == 0) = []; % trim out real data 
+    end
+    
+    % Comparison 
+    [twa.compress.p{1,er},~,twa.compress.stats{1,er}] = anovan(data,...
+        {anova_group,anova_tc,anova_experiment},...
+        'display','off','model','full');
+    
+end
+
+clear er anova_group anova_tc anova_experiment data
 
 %% Grammar in Time 
 
