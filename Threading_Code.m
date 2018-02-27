@@ -773,7 +773,7 @@ clear b bs_top bs_l b scrap
 % disp('Finished Compressing Fish'); 
 % toc
 
-%% Load in Legion Data (START HERE)
+%% Load in Legion Data
 
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180223.mat'); 
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Results_Final.mat',...
@@ -800,13 +800,13 @@ end
 for tc = 1:size(gTermCell,2) % for real vs shuffled data
     for f = 1:size(gTermCell,1) % for each fish
         pd = fitdist(seq_lengths{f,tc},'kernel','Width',1); % Fit pdf
-        seq_lengths_pd(f,:,tc) = pdf(pd,min(sq_l(:)):max(sq_l(:))); % store
+        seq_lengths_pd(f,:,tc) = pdf(pd,min(sq_l(:)):max(sq_l(:))); % fish x pdf x real & shuffles
     end
 end
 
 clear tc f s sq_l pd 
 
-%% Sequence Lengths Figure - WT 
+%% Sequence Lengths Figure
     
 clear legend_lines; 
 figure; box off; set(gca, 'Layer','top'); hold on; 
@@ -814,21 +814,21 @@ set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
 for tc = 2:size(seq_lengths_pd,3) % for each shuffle 
     legend_lines(2) = plot(2:(size(seq_lengths_pd,2)+1),...
         nanmean(seq_lengths_pd(:,:,tc)),...
-        'color','k','linewidth',3); % plot an average  
+        'color','k','linewidth',5); % plot an average  
 end
 legend_lines(1) = plot(2:(size(seq_lengths_pd,2)+1),...
     nanmean(seq_lengths_pd(:,:,1)),...
-    'color',cmap{1,1},'linewidth',3); % plot the real data
+    'color',cmap{1,1},'linewidth',5); % plot the real data
 
 % Settings 
 [~,icons,plots,~] = legend(legend_lines,'Real Data','Shuffled Data',...
     'location','northeast');
 legend('boxoff'); set(icons(1:size(legend_lines,1)),'Fontsize',32) ; set(plots,'LineWidth',5);
-xlabel('Terminal Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
+xlabel('Motif Length','Fontsize',32); ylabel('Probability','Fontsize',32); % Y Labels
 axis([2 (size(seq_lengths_pd,2)+1) ylim]); 
 
 %% Constructing a common Grammar 
-    % Roughly 1 minute per shuffle 
+    % Roughly 1 minute per shuffle (629 fish)
     
 tic
 % Merge all the grammers and keep only unique elements
@@ -862,7 +862,7 @@ end
 
 clear tc nan_locs 
 
-%% Construct WT Grammar Matrix  
+%% Construct Real Grammar Matrix  
 
 grammar_mat{1,1} = nan(size(uniqueSeqs{1,1},1),size(seq_lengths_pd,2)+1,'single'); % sequences x max length 
     
@@ -893,11 +893,12 @@ clear ax grammar_mat_sorted c
 % at each iteration divided by l (Gomez-Marin et al.,2016) 
 
 compressibility = zeros(size(totSavings),'single'); % fish x t/c
-compressibility_rel = zeros(size(totSavings,1),(size(totSavings,2)-1),'single'); % fish x shuffles 
+compressibility_rel = zeros(size(totSavings,1),1,'single'); % fish x 1 
 
 for f = 1:size(threads,1) % for each fish 
-    compressibility(f,:) = totSavings(f,:)./size(threads{f,1,1},1); % calculate compressibility 
-    compressibility_rel(f,:) = compressibility(f,1) - compressibility(f,2:end); % relative compressibility 
+    compressibility(f,:) = totSavings(f,:)/size(threads{f,1,1},1); % calculate compressibility 
+    compressibility_rel(f,1) = (compressibility(f,1) - nanmean(compressibility(f,2:end)))/...
+        nanstd(compressibility(f,2:end)); % relative compressibility (Z-Score) 
 end 
 
 clear f 
@@ -925,10 +926,10 @@ for er = 1:max(experiment_reps) % for each group of experiments
     end
     
     box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-    if er == 1
+    if er == 1 % for the WT Data 
         set(gca, 'XTick', [1 2]); % set X-ticks
         set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels
-    else
+    else % for the other experiments 
         set(gca,'XTickLabels',geno_list{set_token}.colheaders); % X Labels
     end
     ylabel('Compressibility','Fontsize',32); % Y Labels
@@ -963,19 +964,19 @@ for er = 1:max(experiment_reps) % for each group of experiments
     end
     
     box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-    if er == 1
+    if er == 1 % for the WT Experiments 
         set(gca, 'XTick', [1 2]); % set X-ticks
         set(gca,'XTickLabels',{'Data','Shuffled'}); % X Labels
-    else
+    else % for the rest 
         set(gca,'XTick',1:max(i_group_tags(i_experiment_reps == er)));
         set(gca,'XTickLabels',geno_list{set_token}.colheaders); % X Labels
     end
-    ylabel({'Relative' ; 'Compressibility'},'Fontsize',32); % Y Labels
+    ylabel({'Relative' ; 'Compressibility' ; '(Z-Score)'},'Fontsize',32); % Y Labels
     axis([0.5 (max(i_group_tags(i_experiment_reps == er))+.5) ...
-        (min(scrap(1,:)) - (min(scrap(1,:))*0.05)) (max(scrap(2,:)) + (max(scrap(2,:))*0.05))]);
+        min(scrap(1,:)) max(scrap(2,:))]);
 end
 
-clear er set_token g scrap data
+clear ax er set_token g scrap data
 
 %% Compressibility N-Way Anova
 
@@ -1000,7 +1001,7 @@ for er = 1:max(i_experiment_reps) % for each group of experiments
         data = data(:)'; % vectorise 
         anova_group = anova_group(1:size(data,2)); % trim out real data indicies  
         anova_experiment = anova_experiment(1:size(data,2)); % trim 
-        anova_tc(anova_tc == 0) = []; % trim out real data 
+        anova_tc = anova_tc(1:size(data,2)); % trim 
     end
     
     % Comparison 
@@ -1014,16 +1015,9 @@ clear er anova_group anova_tc anova_experiment data
 
 %% Grammar in Time 
 
-% Convert data to singles 
-for tc = 1:2 % for real/control data
-    for i = 1:size(uniqueSeqs{1,tc},1) % for each sequence
-        uniqueSeqs{1,tc}{i,1} = single(uniqueSeqs{1,tc}{i,1}); % convert to single
-    end
-    for f = 1:size(threads,1) % for each fish
-        for c = 1:size(threads,2) % for each column
-            threads{f,c,tc} = single(threads{f,c,tc}); % convert to single 
-        end
-    end
+% Convert real unique seqs to singles before passing to Legion 
+for s = 1:size(uniqueSeqs{1,1},1) % for each sequence
+    uniqueSeqs{1,1}{s,1} = single(uniqueSeqs{1,1}{s,1}); % convert to single
 end
 
 %% Local Version (Parallel - 75mins for 125 fish, 4days,3nights) 
