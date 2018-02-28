@@ -1060,119 +1060,72 @@ end
 % clear tc f t_one t_two i c 
 
 %% Load Grammar Freqs From Legion 
-    % Note (180223): should remove gFreq 
-    % Note (180223): should only count from the real grammar  
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180227.mat'); 
 
-load('D:\Behaviour\SleepWake\Re_Runs\Threading\Grammar_Results_Final.mat',...
-    'gCount','gFreq')
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Grammar_Results_Final.mat',...
+    'gCount_norm');
 
-%% Merge Legion Data 
+%% Reformat Legion Data  
 
-gFreq_merge = cell(1,2); % allocate
-gFreq_merge{1,1} = zeros(size(gFreq{1,1},1),size(gFreq{1,1},2),...
-    size(gFreq,1),'single'); % {t,c} - seqs x time windows x fish
-gFreq_merge{1,2} = zeros(size(gFreq{1,2},1),size(gFreq{1,2},2),...
-    size(gFreq,1),'single'); % {t,c} - seqs x time windows x fish
-gCount_merge = gFreq_merge; % {t,c} - seqs x time windows x fish 
+temp = gCount_norm; 
+clear gCount_norm; 
 
-for tc = 1:2 % for data/control
-    for f = 1:size(gFreq,1) % for each fish
-        gFreq_merge{1,tc}(:,:,f) = gFreq{f,tc}; % fill data
-        gCount_merge{1,tc}(:,:,f) = gCount{f,tc}; % fill data 
-    end
+gCount_norm{1,1} = zeros(size(temp{1,1},1),size(temp{1,1},2),size(threads,1),...
+    'single'); % sequences x time windows x fish
+
+for f = 1:size(threads,1) % for each fish
+    gCount_norm{1,1}(:,:,f) = round(temp{f,1}); % fill rounded data
 end
 
-clear tc f gFreq gCount
+% calculate inf replacements 
+scrap = zeros(1,size(threads,3),'single'); 
+scrap(1,1) = 1; 
+inf_r = round((scrap(1,1) - nanmean(scrap(1,2:end)))/nanstd(scrap)); 
 
- %% Grammar in Time Figure (VERY SLOW...) 
-% 
-% % Generate dn_colormap
-% colors_p = [linspace(cmap_2{1}(1,1),cmap_2{1}(2,1),20)',...
-%     linspace(cmap_2{1}(1,2),cmap_2{1}(2,2),20)',...
-%     linspace(cmap_2{1}(1,3),cmap_2{1}(2,3),20)'];
-% 
-% figure;
-% for tc = 1:2 % for real vs shuffled data
-%     subplot(1,2,tc); hold on; set(gca,'FontName','Calibri');
-%     if tc == 1 
-%         title('Data','Fontsize',32); 
-%     else 
-%         title('Shuffled Data','Fontsize',32); 
-%     end 
-%     
-%     scrap = nanmean(gFreq_merge{1,tc},3); % data 
-%     counter = 1; % start a counter
-%     for thrs = 1:-0.1:-1 % for each threshold (day to night)
-%         try
-%             plot(scrap(dn_score{1,tc} > (thrs-0.1) & dn_score{1,tc} <= thrs,:)',...
-%                 'color',colors_p(counter,:),'linewidth',0.1) % Note will skip any == -1.0
-%             % only really a problem if these exist 
-%         catch
-%         end
-%         counter = counter + 1;
-%     end
-%     
-%     if tc == 1 % use the same top for both plots 
-%         y_lims = ylim; % find top
-%     end 
-%     a = 1; night_start = first_night{1}; % Start counters
-%     for n = 1:size(nights_crop{1},2) % For each night
-%         r(a) = rectangle('Position',[(night_start-0.5) y_lims(1)...
-%             1 (y_lims(2)-y_lims(1))],...
-%             'FaceColor',night_color{1},'Edgecolor',[1 1 1]);
-%         uistack(r(a),'bottom'); % Send to back
-%         a = a + 1; night_start = night_start + 2; % Add to counters
-%     end
-%     
-%     axis([0.5 7.5 0 y_lims(2)]); % hard coded 
-%     box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-%     xlabel('Time (Days/Nights)','Fontsize',32); % X Labels
-%     set(gca, 'XTick', []); % Turn off X-Ticks
-%     ylabel('Mean Frequency','Fontsize',32); % Y Labels
-%     
-%     clear a night_start n r scrap counter
-% end
-%  
-% clear y_lims 
+gCount_norm{1,1}(isinf(gCount_norm{1,1})) = inf_r;
+
+clear temp f scrap inf_r 
 
 %% "Common-ness" of Grammar
-
+    % Note: 180228 this may be more interesting for only the sequences that
+    % occur above chance 
+    
 % Logical Table 
-common_table = zeros(size(uniqueSeqs{1,1},1),size(gFreq_merge{1,1},3),'single'); % sequences x fish  
-
-for s = 1:size(common_table,1) % for each sequence 
-    common_table(s,:) = sum(squeeze(gFreq_merge{1,1}(s,:,:))); 
-    % binary 1 (fish uses sequence) or zero (fish doesn't) 
-end 
+% common_table = zeros(size(uniqueSeqs{1,1},1),size(gFreq_merge{1,1},3),'single'); % sequences x fish  
+% 
+% for s = 1:size(common_table,1) % for each sequence 
+%     common_table(s,:) = sum(squeeze(gFreq_merge{1,1}(s,:,:))); 
+%     % binary 1 (fish uses sequence) or zero (fish doesn't) 
+% end 
 
 %% Common-ness of Grammar Figures 
 
-% Overall Percentage of Fish who use each sequence 
-figure; 
-box off; set(gca, 'Layer','top'); hold on; 
-set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format   
-histogram((sum(common_table,2)/size(common_table,2))*100,'Normalization','probability','binwidth',5,...
-    'EdgeColor','none','FaceColor',cmap{1}(1,:));
-xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
-axis tight 
-
-% Number of Sequences used by each fish  
-figure; 
-for er = 1:max(experiment_reps) % for each group of experiments 
-    set_token = find(experiment_reps == er,1,'first'); % settings
-    ax = subplot(2,3,er); box off; set(gca, 'Layer','top'); hold on;
-    set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
-    spread_cols = plotSpread(sum(common_table(:,i_experiment_reps==er))',...
-        'distributionIdx',i_group_tags(i_experiment_reps == er),...
-        'distributionColors',cmap{set_token},'showMM',2);
-    set(findall(ax,'type','line'),'markersize',15); % change marker sizes
-    spread_cols{2}.LineWidth = 3; spread_cols{2}.Color = 'k'; % Change Mean properties
-    spread_cols{2}.MarkerSize = 12;
-    ylabel('Number of Sequences','Fontsize',32); % Axis Labels
-    set(gca,'xticklabel',geno_list{set_token}.colheaders,'Fontsize',32); % Name each group
-end 
-
-clear ax er 
+% % Overall Percentage of Fish who use each sequence 
+% figure; 
+% box off; set(gca, 'Layer','top'); hold on; 
+% set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format   
+% histogram((sum(common_table,2)/size(common_table,2))*100,'Normalization','probability','binwidth',5,...
+%     'EdgeColor','none','FaceColor',cmap{1}(1,:));
+% xlabel('% of Fish','Fontsize',32); ylabel('Probability','Fontsize',32); % Axis Labels
+% axis tight 
+% 
+% % Number of Sequences used by each fish  
+% figure; 
+% for er = 1:max(experiment_reps) % for each group of experiments 
+%     set_token = find(experiment_reps == er,1,'first'); % settings
+%     ax = subplot(2,3,er); box off; set(gca, 'Layer','top'); hold on;
+%     set(gca,'FontName','Calibri'); set(gca,'Fontsize',32); % Format
+%     spread_cols = plotSpread(sum(common_table(:,i_experiment_reps==er))',...
+%         'distributionIdx',i_group_tags(i_experiment_reps == er),...
+%         'distributionColors',cmap{set_token},'showMM',2);
+%     set(findall(ax,'type','line'),'markersize',15); % change marker sizes
+%     spread_cols{2}.LineWidth = 3; spread_cols{2}.Color = 'k'; % Change Mean properties
+%     spread_cols{2}.MarkerSize = 12;
+%     ylabel('Number of Sequences','Fontsize',32); % Axis Labels
+%     set(gca,'xticklabel',geno_list{set_token}.colheaders,'Fontsize',32); % Name each group
+% end 
+% 
+% clear ax er 
 
 %% Normalise Counts by number of frames per time window
 % gCount_norm = gCount_merge(1,1); % sequences x time windows x fish
@@ -1207,77 +1160,66 @@ clear ax er
 % 
 % clear er e f 
 
-%% Normalise Counts by shuffled data 
-    % Note (180223): should z-score real vs shuffled data 
+%% Identifying Interesting Sequences (is)
 
-gCount_norm = gCount_merge(1,1); % sequences x time windows x fish
+% 180215 Notes
+% 1. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-data.html#d119e2598
+% 2. https://uk.mathworks.com/help/stats/fitcdiscr.html
 
-for s = 1:size(grammar_mat{1,1},1) % for each real sequence
-    if grammar_mat_trans(s) > 0 % if the sequence is found in the shuffled data
-       gCount_norm{1,1}(s,:,:) = gCount_merge{1,1}(s,:,:) - ...
-           gCount_merge{1,2}(grammar_mat_trans(s),:,:); % subtract the shuffled data
-    end 
-end 
+% Settings
+comps = 1000; % number of sequences to identify
 
-%% Identifying Interesting Sequences (is) 
-
-% 180215 Notes 
-    % 1. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-data.html#d119e2598
-    % 2. https://uk.mathworks.com/help/stats/fitcdiscr.html
-    
-% Settings 
-comps = 100; % number of sequences to identify 
-
-% mRMR Approach 
+% mRMR Approach
 for er = 1:max(experiment_reps) % for each experiment repeat
     set_token =  find(experiment_reps == er,1,'first'); % settings
     
     if er == 1 % for the WT fish
         clear data tw; data = ...
-            double([squeeze(nansum(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2))' ; ...
-            squeeze(nansum(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))']); 
-        tw = ones(size(data,1),1); tw(1:size(data,1)/2) = 0; % day vs night data 
-%           clear data tw; data = ...
-%             double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
-%             reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),size(grammar_mat{1,1},1),[])']); 
-%         tw = ones(size(data,1),1); tw(1:size(data,1)/2) = 0; % day vs night data 
-
+            double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
+            reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),size(grammar_mat{1,1},1),[])']);
+        tw = ones(size(data,1),1)*2; tw(1:size(data,1)/2) = 1; % day (1) vs night (2) data
+        
+        data(data < 0) = 0; % Remove negative values for now 
+ 
     else
-%         clear data tw; data = ...
-%             double(squeeze(nansum(gCount_merge{1,1}(:,days_crop{set_token}(days{set_token}),i_experiment_reps==er),2) - ...
-%             nansum(gCount_merge{1,1}(:,nights_crop{set_token}(nights{set_token}),i_experiment_reps==er),2))'); 
-%         tw = i_group_tags(i_experiment_reps == er); 
+        clear data tw; data = ...
+            double(reshape(gCount_norm{1,1}(:,time_window{set_token}(1):time_window{set_token}(2),...
+            i_experiment_reps == er),size(uniqueSeqs{1,1},1),[]))';
+        tw = repmat(i_group_tags(i_experiment_reps == er),1,...
+            size(time_window{set_token}(1):time_window{set_token}(2),2))';
+        tw = (tw(:)')';
     end
     
-    %data = zscore(data); % z-score data 
-    
     tic
-    [comps_v{er,1}(:,1)] = mrmr_miq_d(data,tw, comps); 
+    [comps_v{er,1}(:,1)] = mrmr_miq_d(data,tw, comps);
     toc
-
-    data = data(:,comps_v{er,1}); % reduce to samples x comp sequences 
-
+    
+    data = data(:,comps_v{er,1}); % reduce to samples x comp sequences
+    
     tic
     for s = 1:size(comps_v{er,1},1) % for each comp sequence
-        Mdl = fitcdiscr(data(:,1:s),tw,'DiscrimType','quadratic','CrossVal','on');
-            % Fit a quadratic classifier as you add features
-            % Using 10 fold cross validation 
-            % Hold 10% of data back by default 
-        L(s) = kfoldLoss(Mdl);
+        Mdl = fitcdiscr(data(:,1:s),tw,'DiscrimType','linear','CrossVal','on');
+        % Fit a linear classifier as you add features
+        % Using 10 fold cross validation
+        % Hold 10% of data back by default
+        Mdl_loss{er,1}(1,s) = kfoldLoss(Mdl);
     end
     toc
-
-    tsne_pro = tsne(data(:,1:10),'Algorithm','barneshut',...
-            'Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
-            'Perplexity',30,'Standardize',1,'Verbose',0);
-        
-    figure; hold on; 
-    scatter(tsne_pro(tw==0,1),tsne_pro(tw==0,2),'c','filled');
-    scatter(tsne_pro(tw==1,1),tsne_pro(tw==1,2),'b','filled');
-
+    
+%     tsne_pro = tsne(data(:,1:75),'Algorithm','barneshut',...
+%         'Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+%         'Perplexity',30,'Standardize',1,'Verbose',0);
+%     
+%     figure; hold on;
+%     for g = 1:max(tw) % for each group
+%         scatter(tsne_pro(tw == g,1),tsne_pro(tw == g,2),...
+%             'markerfacecolor',cmap_2{set_token}(g,:),...
+%             'markeredgecolor',cmap_2{set_token}(g,:));
+%     end
+    
 end
 
-clear er set_token data tw 
+clear er set_token data tw s Mdl
 
 %% Interesting Sequences Figure 
 
@@ -1294,13 +1236,13 @@ for er = 1:max(experiment_reps) % for each group of experiments
     %c = colorbar; c.Label.String = 'Cluster';
     xlabel('Position in Sequence','Fontsize',32);
     ylabel('Sequence','Fontsize',32);
-    clear ax grammar_mat_sorted c
+    clear ax scrap c
 end
 
 %% Grammar Comparison Figure  
-    % Note (180223): should plot z-scores  
 
 % Settings
+ts = 5; % number of sequences to show 
 cmap_cluster_merge = [cmap_cluster{2,1} ; cmap_cluster{1,1}]; % merged colormap
 
 for er = 1:max(experiment_reps) % for each group of experiments
@@ -1308,35 +1250,27 @@ for er = 1:max(experiment_reps) % for each group of experiments
     counter = 1; % counts subplots
     set_token = find(experiment_reps == er,1,'first'); % settings
     
-    for s = comps_v{er,1}' % for each sequence
+    for s = comps_v{er,1}(1:ts,1)' % for each sequence to show 
         
         % Plot Lines
-        subplot(2,comps,counter); hold on; set(gca,'FontName','Calibri');
+        subplot(2,ts,counter); hold on; set(gca,'FontName','Calibri');
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
-%                         if er == 1
-%                         plot(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-%                             i_experiment_reps == er & i_group_tags == g)),...
-%                             'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-%                         end
-            errorbar(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                i_experiment_reps == er & i_group_tags == g)),2),...
-                (nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                i_experiment_reps == er & i_group_tags == g))')/sqrt(sum(i_group_tags(i_experiment_reps==er) == g))),...
+            clear data; data = ...
+                squeeze(gCount_norm{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er & i_group_tags == g))';
+           
+            errorbar(nanmean(data),(nanstd(data)/...
+                sqrt(sum(i_experiment_reps == er & i_group_tags == g))),...
                 'color',cmap{set_token}(g,:),'linewidth',3);
             
-            scrap(1,g) = min(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                i_experiment_reps == er & i_group_tags == g)),2)' - ...
-                (nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                i_experiment_reps == er & i_group_tags == g))')/sqrt(sum(i_group_tags(i_experiment_reps==er) == g))));
-            scrap(2,g) = max(nanmean(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                i_experiment_reps == er & i_group_tags == g)),2)' + ...
-                (nanstd(squeeze(gCount_merge{1,1}(s,time_window{set_token}(1):time_window{set_token}(2),...
-                i_experiment_reps == er & i_group_tags == g))')/sqrt(sum(i_group_tags(i_experiment_reps==er) == g))));
+            scrap(1,g) = min(nanmean(data) - (nanstd(data)/...
+                sqrt(sum(i_experiment_reps == er & i_group_tags == g))));
+            scrap(2,g) = max(nanmean(data) + (nanstd(data)/...
+                sqrt(sum(i_experiment_reps == er & i_group_tags == g))));        
         end
         
         % Add night patches
-        y_lims = [(min(scrap(1,:)) - min(scrap(1,:))*0.05) ...
-            (max(scrap(2,:)) + max(scrap(2,:))*0.05)]; % Add a bit of space either side
+        y_lims = [min(scrap(1,:)) max(scrap(2,:))]; % Add a bit of space either side
         
         a = 1; night_start = first_night{set_token}; % Start counters
         for n = 1:size(nights{set_token},2) % For each night
@@ -1353,17 +1287,20 @@ for er = 1:max(experiment_reps) % for each group of experiments
         box off; set(gca, 'Layer','top'); set(gca,'Fontsize',12); % Format
         xlabel('Time (Days/Nights)','Fontsize',12); % X Labels
         set(gca, 'XTick', []); % Turn off X-Ticks
-        ylabel({'Mean' ; 'Sequence Counts'},'Fontsize',12); % Y Labels
+        ylabel({'Z-Score'},'Fontsize',12); % Y Labels
         
-        if counter == comps
+        % Legend 
+        if counter == ts
             [~,~,~,~] = legend(geno_list{set_token}.colheaders,'Location','best'); % Generate axis
             legend('boxoff'); % Turn legend off
         end
         
         % Plot Sequence - from randomly chosen fish
-        subplot(2,comps,counter + comps); hold on; set(gca,'FontName','Calibri');
+        subplot(2,ts,counter + ts); hold on; set(gca,'FontName','Calibri');
         if er == 1 % for the WT fish
-            exampleFish = datasample(find(nansum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
+            exampleFish = datasample(find(sum(squeeze(gCount_norm{1,1}...
+                (s,time_window{set_token}(1):time_window{set_token}(2),...
+                i_experiment_reps == er))) >= 1),...
                 1,'replace',false); % find a fish who uses this sequence
         else
             exampleFish = datasample(find(nansum(squeeze(gFreq_merge{1,1}(s,:,i_experiment_reps == er))) == 1),...
@@ -1398,7 +1335,57 @@ for er = 1:max(experiment_reps) % for each group of experiments
     
 end
 
-clear ax er set_token g scrap counter seqs
+clear er counter set_token s g data scrap y_lims a n r ...
+    exampleFish Tlocs Rlocs ax  
+
+%% Localising IS in Time 
+
+for er = 1:max(experiment_reps) % for each group of experiments
+    for t = 1:ts
+        timeSeqs{er,t} = sparse(sum(i_experiment_reps == er),...
+            size(raw_data{er,1},2));
+        % experiment reps x is {fish x frames)
+    end
+end
+
+clear scrap;
+for er = 1:max(experiment_reps) % for each group of experiments
+    counter_2 = 1; % start a counter (counts sequences)
+    
+    for s = comps_v{er,1}(1:ts,1)' % for each sequence to show 
+        counter = 1; % start a counter (counts fish)
+        
+        for f = find(i_experiment_reps == er)' % for each fish
+            
+            Tlocs = strfind(threads{f,1,1}',uniqueSeqs{1,1}{s,1}); % find pattern starts (positions in threads)
+            Rlocs = threads{f,2,1}(Tlocs,1); % find pattern starts in real time (frames)
+            Rlocs = Rlocs + offset(er,(i_experiment_tags(f) - ...
+                (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % correct for offset (frames)
+            
+            timeSeqs{er,counter_2}(counter,Rlocs) = 1; % fill in ones
+            counter = counter + 1; % add to counter (counts fish)
+            
+        end
+        
+        counter_2 = counter_2 + 1; % add to counter (counts sequences)
+        
+    end
+end
+
+%% IS in Time Figure 
+
+figure; 
+er = 1; 
+for s = 1:ts
+    subplot(1,ts,s); hold on;
+    clear scrap; scrap = full(timeSeqs{er,s}); 
+    for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
+        plot(smooth(sum(scrap(i_group_tags(i_experiment_reps==er)==g,:))/...
+            sum(sum(timeSeqs{er,s}(i_group_tags(i_experiment_reps==er)==g,:))),25*60*15),...
+            'color',cmap{set_token}(g,:)); 
+        
+    end
+end
 
 %% IS Transition Probabilities 
 steps = 1; % Markov Steps to Take 
@@ -1423,53 +1410,6 @@ for er = [1 4 5] % for each group of experiments
             transitions(:,:,f,t) = bsxfun(@rdivide,transitions(:,:,f,t),...
                 sum(transitions(:,:,f,t),2)); % Convert to probabilities
         end
-    end
-end
-
-%% Localising IS in Time 
-
-for er = 1:max(experiment_reps) % for each group of experiments
-    for s = 1:comps
-        timeSeqs{er,s} = sparse(size(raw_data{er,1},1),size(raw_data{er,1},2));
-        % experiment reps x is {fish x frames)
-    end
-end
-
-clear scrap;
-for er = 1:max(experiment_reps) % for each group of experiments
-    counter_2 = 1; % start a counter (counts sequences)
-    
-    for s = comps_v{er,1}'  % for each interesting sequence
-        counter = 1; % start a counter (counts fish)
-        
-        for f = find(i_experiment_reps == er)' % for each fish
-            
-            Tlocs = strfind(threads{f,1,1}',uniqueSeqs{1,1}{s,1}); % find pattern starts (positions in threads)
-            Rlocs = threads{f,2,1}(Tlocs,1); % find pattern starts in real time (frames)
-            Rlocs = Rlocs + offset(er,(i_experiment_tags(f) - ...
-                (min(unique(i_experiment_tags(i_experiment_reps == er))) - 1))); % correct for offset (frames)
-            timeSeqs{er,counter_2}(counter,Rlocs) = 1; % fill in ones
-            counter = counter + 1; % add to counter (counts fish)
-            
-        end
-        
-        counter_2 = counter_2 + 1; % add to counter (counts sequences)
-        
-    end
-end
-
-%% IS in Time Figure 
-
-figure; 
-er = 1; 
-for s = 1:comps
-    subplot(1,comps,s); hold on;
-    clear scrap; scrap = full(timeSeqs{er,s}); 
-    for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
-        plot(smooth(sum(scrap(i_group_tags(i_experiment_reps==er)==g,:))/...
-            sum(sum(timeSeqs{er,s}(i_group_tags(i_experiment_reps==er)==g,:))),25*60*15),...
-            'color',cmap{set_token}(g,:)); 
-        
     end
 end
 
