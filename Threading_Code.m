@@ -1163,85 +1163,107 @@ clear temp f scrap inf_r
 %% Identifying Interesting Sequences (is)
 
 % 180215 Notes
-% 1. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-data.html#d119e2598
+% 1. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-mRMR_data.html#d119e2598
 % 2. https://uk.mathworks.com/help/stats/fitcdiscr.html
 
 % Settings
-comps = 500; % number of sequences to identify
+comps = 1000; % number of sequences to identify
 
 % mRMR Approach
 for er = 1:max(experiment_reps) % for each experiment repeat
     set_token =  find(experiment_reps == er,1,'first'); % settings
     
+    % Grab Data 
     if er == 1 % for the WT fish
         % Organised to be:
-        % rows = all day data, then all night data 
+        % rows = all day mRMR_data, then all night mRMR_data 
         % columns = sequences 
-        clear data tw; data = ...
+        mRMR_data{er,1} = ...
             double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),...
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
             reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),...
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])']);
-        tw = ones(size(data,1),1)*2; tw(1:size(data,1)/2) = 1; % day (1) vs night (2) data
+        mRMR_tw{er,1} = ones(size(mRMR_data{er,1},1),1)*2; mRMR_tw{er,1}(1:size(mRMR_data{er,1},1)/2) = 1; % day (1) vs night (2) mRMR_data
         
-        data(data < 0) = 0; % Remove negative values for now
+        mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
         
     else
         % Organised to be:
         % rows = fish 1 (all time windows), fish 2 (all time windows) etc 
         % columns = sequences 
-        clear data tw; data = ...
+        mRMR_data{er,1} = ...
             double(reshape(gCount_norm{1,1}(:,time_window{set_token}(1):time_window{set_token}(2),...
             i_experiment_reps == er),size(uniqueSeqs{1,1},1),[]))';
-        tw = repmat(i_group_tags(i_experiment_reps == er),1,...
+        mRMR_tw{er,1} = repmat(i_group_tags(i_experiment_reps == er),1,...
             size(time_window{set_token}(1):time_window{set_token}(2),2))';
-        tw = (tw(:)')';
+        mRMR_tw{er,1} = (mRMR_tw{er,1}(:)')';
     end
     
+    % Pairwise Comparisons
     tic
-    [comps_v{er,1}(:,1)] = mrmr_miq_d(data,tw, comps);
-    toc
-    
-    data = data(:,comps_v{er,1}); % reduce to samples x comp sequences
-    
-    tic
-    for s = 1:size(comps_v{er,1},1) % for each comp sequence
-        Mdl = fitcdiscr(data(:,1:s),tw,'DiscrimType','linear','CrossVal','on');
-        % Fit a linear classifier as you add features
-        % Using 10 fold cross validation
-        % Hold 10% of data back by default
-        Mdl_loss{er,1}(1,s) = kfoldLoss(Mdl);
-    end
-    toc
-    
-    % Minimal Feature Space
-    ms(er) = find(smooth(Mdl_loss{er,1},3) == min(smooth(Mdl_loss{er,1},3)),1,'first');
-    figure; plot(smooth(Mdl_loss{er,1},3)); 
-    
-    tsne_pro{1,er} = tsne(data(:,1:ms(er)),'Algorithm','exact',...
-        'Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
-        'Perplexity',30,'Standardize',1,'Verbose',0);
-    
-    figure; hold on;
-    for g = 1:max(tw) % for each group
-        if er == 1 % for the wt data
-            scatter(tsne_pro{1,er}(tw == g,1),tsne_pro{1,er}(tw == g,2),...
-                'markerfacecolor',cmap_2{set_token}(g,:),...
-                'markeredgecolor',cmap_2{set_token}(g,:));
-        else
-            scatter(tsne_pro{1,er}(tw == g,1),tsne_pro{1,er}(tw == g,2),...
-                'markerfacecolor',cmap{set_token}(g,:),...
-                'markeredgecolor',cmap{set_token}(g,:));
+    counter = 1; % start a counter
+    for g_one = min(mRMR_tw{er,1}):max(mRMR_tw{er,1}) % for each group
+        for g_two = (g_one + 1):max(mRMR_tw{er,1}) % for each comparison
+            
+            % mRMR
+            [comps_v{er,counter}(:,1)] = mrmr_miq_d(...
+                mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
+                mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),comps);
+            
+            % Classifier 
+            for s = 1:size(comps_v{er,counter},1) % for each comp sequence
+                Mdl = fitcdiscr(...
+                    mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
+                    comps_v{er,counter}(1:s,1)),...
+                    mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
+                    'DiscrimType','linear','CrossVal','on');
+                % Fit a linear classifier as you add features
+                % Using 10 fold cross validation
+                % Hold 10% of mRMR_data back by default
+                Mdl_loss{er,counter}(1,s) = kfoldLoss(Mdl);
+            end
+            
+            % Minimal Feature Space
+            mRMR_ms(er,counter) = find(smooth(Mdl_loss{er,counter},3) == ...
+                min(smooth(Mdl_loss{er,counter},3)),1,'first');
+            %find(smooth(Mdl_loss{er,6},3) < 0.05,1,'first')
+            
+            counter = counter + 1; % add to counter
         end
-        
+    end
+    disp(horzcat('Finished mRMR Comparisons ',num2str(er),' of ',...
+        num2str(max(experiment_reps)))); % report progress
+    toc
+       
+end
+
+clear er set_token s Mdl
+
+%% Pairwise Classifier Figure 
+
+%% Minimal Feature Space Figure
+
+tsne_pro{1,er} = tsne(mRMR_data{er,1}(:,1:ms(er)),'Algorithm','exact',...
+    'Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+    'Perplexity',30,'Standardize',1,'Verbose',0);
+
+figure; hold on;
+for g = 1:max(mRMR_tw{er,1}) % for each group
+    if er == 1 % for the wt mRMR_data
+        scatter(tsne_pro{1,er}(mRMR_tw{er,1} == g,1),tsne_pro{1,er}(mRMR_tw{er,1} == g,2),...
+            'markerfacecolor',cmap_2{set_token}(g,:),...
+            'markeredgecolor',cmap_2{set_token}(g,:));
+    else
+        scatter(tsne_pro{1,er}(mRMR_tw{er,1} == g,1),tsne_pro{1,er}(mRMR_tw{er,1} == g,2),...
+            'markerfacecolor',cmap{set_token}(g,:),...
+            'markeredgecolor',cmap{set_token}(g,:));
     end
     
 end
 
-clear er set_token data tw s Mdl
-
+%% Constrained vs Enriched Figure 
 %% Interesting Sequences Figure 
-
+    % Note: 180306 - Crop axis to longest sequence
 figure; 
 for er = 1:max(experiment_reps) % for each group of experiments 
     subplot(2,3,er); % subplot 
