@@ -1167,7 +1167,7 @@ clear temp f scrap inf_r
 % 2. https://uk.mathworks.com/help/stats/fitcdiscr.html
 
 % Settings
-comps = 1000; % number of sequences to identify
+comps = 500; % number of sequences to identify
 
 % mRMR Approach
 for er = 1:max(experiment_reps) % for each experiment repeat
@@ -1198,7 +1198,7 @@ for er = 1:max(experiment_reps) % for each experiment repeat
             size(time_window{set_token}(1):time_window{set_token}(2),2))';
         mRMR_tw{er,1} = (mRMR_tw{er,1}(:)')';
     end
-    
+        
     % Pairwise Comparisons
     tic
     counter = 1; % start a counter
@@ -1206,27 +1206,39 @@ for er = 1:max(experiment_reps) % for each experiment repeat
         for g_two = (g_one + 1):max(mRMR_tw{er,1}) % for each comparison
             
             % mRMR
-            [comps_v{er,counter}(:,1)] = mrmr_miq_d(...
+            [comps_v{er,1}(counter,:)] = mrmr_miq_d(...
                 mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
                 mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),comps);
             
-            % Classifier 
-            for s = 1:size(comps_v{er,counter},1) % for each comp sequence
-                Mdl = fitcdiscr(...
-                    mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
-                    comps_v{er,counter}(1:s,1)),...
-                    mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
-                    'DiscrimType','linear','CrossVal','on');
-                % Fit a linear classifier as you add features
-                % Using 10 fold cross validation
-                % Hold 10% of mRMR_data back by default
-                Mdl_loss{er,counter}(1,s) = kfoldLoss(Mdl);
+            % Classifiers 
+            for s = 1:comps % for each comp sequence
+%                 if er == 1 % for the WT data
+                    % Fit a linear classifier as you add features
+                    % Using 10 fold cross validation
+                    % Hold 10% of mRMR_data back by default
+                    Mdl = fitcdiscr(...
+                        mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
+                        comps_v{er,1}(counter,1:s)),...
+                        mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
+                        'DiscrimType','linear','CrossVal','on');
+%                 else
+%                     Mdl = fitcdiscr(...
+%                         mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
+%                         comps_v{er,counter}(1:s,1)),...
+%                         mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
+%                         'DiscrimType','linear','CrossVal','on','Leaveout','on');
+%                     disp(horzcat('Fit ',num2str(s),' LOOCV of ',numstr(comps)));
+%                 end
+                Mdl_loss{er,1}(counter,s) = kfoldLoss(Mdl);
             end
             
             % Minimal Feature Space
-            mRMR_ms(er,counter) = find(smooth(Mdl_loss{er,counter},3) == ...
-                min(smooth(Mdl_loss{er,counter},3)),1,'first');
-            %find(smooth(Mdl_loss{er,6},3) < 0.05,1,'first')
+            if er == 1 % for the WT data
+                mRMR_ms(er,counter) = find(smooth(Mdl_loss{er,1}(counter,:),3) == ...
+                    min(smooth(Mdl_loss{er,1}(counter,:),3)),1,'first');
+            else
+                mRMR_ms(er,counter) = find(Mdl_loss{er,1}(counter,:) < 0.05,1,'first'); 
+            end
             
             counter = counter + 1; % add to counter
         end
@@ -1239,46 +1251,104 @@ end
 
 clear er set_token s Mdl
 
-%% Pairwise Classifier Figure 
+%% Pairwise Classifier Figure
+    % diag(Mdl_loss{5,1}(2:end,mRMR_ms(end,2:end)))
+
+figure;
+er = 5; % set interest 
+set_token =  find(experiment_reps == er,1,'first'); % settings
+clear scrap; counter = 1; % start a counter 
+scrap = nan(max(mRMR_tw{er,1}),max(mRMR_tw{er,1}),'single'); 
+for g_one = min(mRMR_tw{er,1}):max(mRMR_tw{er,1}) % for each group
+    for g_two = (g_one + 1):max(mRMR_tw{er,1}) % for each comparison
+        scrap(g_one,g_two) = mRMR_ms(er,counter);
+        counter = counter + 1; % add to counter 
+    end
+end
+ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
+colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+c = colorbar; c.Label.String = 'Number of Motifs';
+set(gca,'XTick',1:size(scrap,1)); set(gca,'XTickLabel',geno_list{set_token}.colheaders,'Fontsize',32);
+set(gca,'YTick',1:size(scrap,1)); set(gca,'YTickLabel',geno_list{set_token}.colheaders,'Fontsize',32);
+
+clear er set_token scrap g_one g_two counter ax c
 
 %% Minimal Feature Space Figure
+er = 1; % set interest
+set_token =  find(experiment_reps == er,1,'first'); % settings
 
-tsne_pro{1,er} = tsne(mRMR_data{er,1}(:,1:ms(er)),'Algorithm','exact',...
-    'Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
-    'Perplexity',30,'Standardize',1,'Verbose',0);
+if er == 1
+    mRMR_tsne{er,1} = tsne(mRMR_data{er,1}(:,comps_v{er,1}(1,1:mRMR_ms(er,1))),...
+        'Algorithm','exact','Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+        'Perplexity',30,'Standardize',1,'Verbose',0);
+else
+    scrap = [];
+    for c = 1:size(comps_v{er,1},1) % for each comparison
+        scrap = [scrap comps_v{er,1}(c,1:mRMR_ms(er,c))]; 
+    end
+    scrap = unique(scrap); 
+    mRMR_tsne{er,1} = tsne(mRMR_data{er,1}(:,scrap),...
+        'Algorithm','exact','Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+        'Perplexity',30,'Standardize',1,'Verbose',0);
+end
 
 figure; hold on;
 for g = 1:max(mRMR_tw{er,1}) % for each group
     if er == 1 % for the wt mRMR_data
-        scatter(tsne_pro{1,er}(mRMR_tw{er,1} == g,1),tsne_pro{1,er}(mRMR_tw{er,1} == g,2),...
+        scatter(mRMR_tsne{er,1}(mRMR_tw{er,1} == g,1),mRMR_tsne{er,1}(mRMR_tw{er,1} == g,2),...
             'markerfacecolor',cmap_2{set_token}(g,:),...
             'markeredgecolor',cmap_2{set_token}(g,:));
     else
-        scatter(tsne_pro{1,er}(mRMR_tw{er,1} == g,1),tsne_pro{1,er}(mRMR_tw{er,1} == g,2),...
+        scatter(mRMR_tsne{er,1}(mRMR_tw{er,1} == g,1),mRMR_tsne{er,1}(mRMR_tw{er,1} == g,2),...
             'markerfacecolor',cmap{set_token}(g,:),...
             'markeredgecolor',cmap{set_token}(g,:));
     end
     
 end
 
-%% Constrained vs Enriched Figure 
-%% Interesting Sequences Figure 
-    % Note: 180306 - Crop axis to longest sequence
-figure; 
-for er = 1:max(experiment_reps) % for each group of experiments 
-    subplot(2,3,er); % subplot 
-    clear scrap;
-    scrap = grammar_mat{1,1}(comps_v{er,1}(1:ms(er),1),:); % grab sequences 
-    scrap = scrap(:,1:find(sum(isnan(scrap))~=comps,1,'last')); % trim to longest length 
-    ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
-    colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
-    set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-    set(ax,'CDataMapping','direct');
-    c = colorbar; c.Label.String = 'Cluster';
-    xlabel('Position in Sequence','Fontsize',32);
-    ylabel('Sequence','Fontsize',32);
-    clear ax scrap c
-end
+%% Interesting Motifs Figure 
+% Settings 
+er = 1; % set interest
+set_token =  find(experiment_reps == er,1,'first'); % settings
+
+% Motifs
+figure;
+subplot(1,2,1); % subplot
+clear scrap;
+scrap = grammar_mat{1,1}(comps_v{er,1}(1,1:mRMR_ms(er,1)),:); % grab motifs
+scrap(:,sum(isnan(scrap)) == mRMR_ms(er,1)) = [];
+ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
+colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+set(ax,'CDataMapping','direct');
+%c = colorbar; c.Label.String = 'Cluster';
+xlabel('Position in Motif','Fontsize',32);
+ylabel('Motif','Fontsize',32);
+
+% WT Constraint/Enrichment 
+subplot(1,2,2); hold on; set(gca,'Ydir','reverse'); 
+plot([0 0],[(1-0.5) (mRMR_ms(er,1)+0.5)],'-k','linewidth',1.5); clear scrap;
+for s = 1:mRMR_ms(er,1) % for each contextual motif 
+    clear data; 
+    data = nanmean(squeeze(gCount_norm{1,1}(comps_v{er,1}(1,s),...
+        time_window{set_token}(1):time_window{set_token}(2),...
+        i_experiment_reps == er))');
+    plot([nanmean(data(1:2:end)),nanmean(data(2:2:end))],[s s],'color',...
+        night_color{set_token},'linewidth',1.5); 
+    scrap(:,s) = minmax([nanmean(data(1:2:end)),nanmean(data(2:2:end))])'; 
+    for g = 1:2 % for day/night
+        scatter(nanmean(data(g:2:end)),s,...
+            'markerfacecolor',cmap_2{set_token}(g,:),...
+            'markeredgecolor',cmap_2{set_token}(g,:))
+    end 
+end 
+axis([min(scrap(1,:)) max(scrap(2,:)) (1-0.5) (mRMR_ms(er,1)+0.5)]);
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+xlabel('Z-Score','Fontsize',32);
+set(gca,'YTick',[]); 
+
+clear er set_token scrap ax c s data g scrap
 
 %% Grammar Comparison Figure  
 
