@@ -1063,13 +1063,12 @@ end
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Grammar_Results_Final.mat',...
     'gCount_norm');
 
-temp = gCount_norm; 
-clear gCount_norm; 
+temp = gCount_norm; clear gCount_norm; 
 
 % Allocate 
 for tc = 1:size(temp,2) % for real & shuffled data
     gCount_norm{1,tc} = zeros(size(temp{1,1},1),size(temp{1,1},2),size(temp,1),...
-        'single'); % sequences x time windows x fish
+        'single'); % {real/shuffled} sequences x time windows x fish
 end
 
 % calculate inf replacements 
@@ -1083,61 +1082,81 @@ for tc = 1:size(temp,2) % for real & shuffled data
         gCount_norm{1,tc}(:,:,f) = round(temp{f,tc}); % fill rounded data
     end
     
-    scrap(isinf(scrap) & scrap < 0);
-    scrap(isinf(scrap) & scrap < 0) = -3;
-    scrap(isinf(scrap) & scrap > 0) = 3;
-
-    %gCount_norm{1,tc}(isinf(gCount_norm{1,tc})) = inf_r;
+    % Replace -Inf & Inf Values 
+    gCount_norm{1,tc}(isinf(gCount_norm{1,tc}) & ...
+        gCount_norm{1,tc} < 0) = -1*inf_r; % -ve inf 
+    gCount_norm{1,tc}(isinf(gCount_norm{1,tc}) & ...
+        gCount_norm{1,tc} > 0) = inf_r; % +ve inf 
+      
 end
 
 clear temp tc scrap inf_r f
 
 %% Real vs Shuffled Z-Scores Pdf 
 
-for tc = 1:size(gCount_norm,2) % for each shuffle 
-    tb(:,tc) = minmax(gCount_norm{1,tc}(:)'); % find it's max & min z-score 
-end 
-tb = min(tb(:)):max(tb(:)); % vector from min-max z-score 
+for tc = 1:size(gCount_norm,2) % for each shuffle
+    tb(:,tc) = minmax(gCount_norm{1,tc}(:)'); % find it's max & min z-score
+end
+tb = min(tb(:)):max(tb(:)); % vector from min-max z-score
 tb_z = find(tb == 0); % zero location
 
 tc_pdf = NaN(size(gCount_norm{1,1},3),size(tb,2),...
-    size(gCount_norm,2),'single'); % fish x z-score range x real/shuffled data  
-tc_pdf_binned = nan(size(gCount_norm{1,1},3),21,size(gCount_norm,2),'single'); 
-    % fish x hard coded bin x real/shuffled data 
+    size(gCount_norm,2),'single'); % fish x z-score range x real/shuffled data
+tc_pdf_binned = nan(size(gCount_norm{1,1},3),21,size(gCount_norm,2),'single');
+% fish x hard coded bin x real/shuffled data
 
-tic 
+tic
 for f = 1:size(gCount_norm{1,1},3) % for each fish
     for tc = 1:size(gCount_norm,2) % for each shuffle
-        clear data pd; data = gCount_norm{1,tc}(:,:,f); data = data(:)';
-        pd = fitdist(data','kernel','Width',1); % Fit pdf
-        tc_pdf(f,:,tc) = pdf(pd,tb(1):tb(end)); % all data 
+        clear data pd; data = gCount_norm{1,tc}(:,:,f); data = data(:);
+        pd = fitdist(data,'kernel','Width',1); % Fit pdf
+        tc_pdf(f,:,tc) = pdf(pd,tb(1):tb(end)); % all data
         
         % Binned data
-         tc_pdf_binned(f,2:end-1,tc) = tc_pdf(f,(tb_z-9):(tb_z+9),tc);  
-         tc_pdf_binned(f,1,tc) = sum(tc_pdf(f,1:(tb_z-10),tc));
-         tc_pdf_binned(f,end,tc) = sum(tc_pdf(f,(tb_z+10):end,tc));
-        
+        tc_pdf_binned(f,2:(end-1),tc) = tc_pdf(f,(tb_z-9):(tb_z+9),tc); % around zero 
+        tc_pdf_binned(f,1,tc) = sum(tc_pdf(f,1:(tb_z-10),tc)); % binned 
+        tc_pdf_binned(f,end,tc) = sum(tc_pdf(f,(tb_z+10):end,tc)); % binned
     end
-    disp(num2str(f));
+    
+    % Report Progress
+    if mod(f,100) == 0
+        disp(horzcat(num2str(f),' of ',num2str(size(gCount_norm{1,1},3))));
+    end
+    
 end
-toc 
+toc
 
-clear tc f data pd 
+clear tc f data pd
 
 %% Load Data
-gCount_norm(1,2:end) = []; % remove excess shuffled data 
+gCount_norm(:,2:end) = []; % remove excess shuffled data 
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180227.mat'); 
 
 %% Real vs Shuffled Z-Scores Figure 
-
+er = 1; 
+set_token =  find(experiment_reps == er,1,'first'); % settings
 figure; 
-hold on
-plot(min(tb(1,:)):max(tb(2,:)),tc_pdf(1:124,:,1)','b')
+hold on; clear legned_lines
+plot(-10:10,tc_pdf_binned(i_experiment_reps == er,:,1),'color',...
+    cmap_2{set_token}(1,:)+(1-cmap_2{set_token}(1,:))*(1-(1/(5)^.5)),...
+    'linewidth',1.5)
 for tc = 2:11
-plot(min(tb(1,:)):max(tb(2,:)),tc_pdf(1:124,:,tc)','k')
+    plot(-10:10,tc_pdf_binned(i_experiment_reps == er,:,tc),'color',...
+    ([1 1 1]*(1-(1/(5)^.5))),'linewidth',1.5);
 end
-axis([-10 10 0 0.4]); 
+legend_lines(2) = plot(-10:10,nanmean(nanmean(tc_pdf_binned(i_experiment_reps == er,:,2:end)),3),...
+    'k','linewidth',3); 
+legend_lines(1) = plot(-10:10,nanmean(tc_pdf_binned(i_experiment_reps == er,:,1)),...
+    'color',cmap_2{set_token}(1,:),'linewidth',3); 
 
+axis tight 
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+set(gca,'XTick',-10:2:10)
+xlabel('Z-Score'); ylabel('Probability'); 
+legend(legend_lines,'Real Data','Shuffled Data'); 
+legend('boxoff'); 
+
+% Note: Remember to add in ? & ? symols to the ends 
 %% "Common-ness" of Grammar
     % Note: 180228 this may be more interesting for only the sequences that
     % occur above chance 
