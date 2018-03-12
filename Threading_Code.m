@@ -13,7 +13,9 @@
  %% Load data (Post State_Space_4)
     % Note that running State_Space_4 first is necessary to re-order the
         % Clusters by a suitable metric 
+        
 set(0,'DefaultFigureWindowStyle','docked'); % dock figures 
+set(0,'defaultfigurecolor',[1 1 1]); % white background
 
 % Load  
 load('D:\Behaviour\SleepWake\Re_Runs\Post_State_Space_Data\New\180111.mat');
@@ -400,77 +402,89 @@ end
 
 clear er set_token s c g legend_lines scrap a n r 
 
-%% Bout Probabilities Histograms WT  
-    % Plots Individual Fish 
-    % Plots Day vs Night on the Same Axis 
-    
+%% Bout Probabilities Order
+% Sort based on WT mean day probability 
+
+[~,bp_order(1,:)] = sort(nanmean(nanmean(bout_proportions{1,1}...
+    (i_experiment_reps == 1,:,days_crop{1}(days{1})),3)),'descend'); % active clusters
+bp_order(2,1:numComp(2)) = 1:numComp(2); % inactive clusters (keep sorted by length)
+bp_order(bp_order == 0) = NaN; % remove zeros
+
+%% Bout Probabilities Histograms WT - Scatter
+% Plots Individual Fish
+% Plots Day vs Night on the Same Axis
+
 for er = 1 % for the WT experiments
     figure;
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
     for s = 1:2 % for active/inactive clusters
-        subplot(2,1,s); hold on; set(gca,'FontName','Calibri');
+        ax = subplot(2,1,s); hold on; set(gca,'FontName','Calibri');
         col = 1; % start colour counter
+        sep = 0.75/2; clear spread_cols
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             
-            % Plot each fish 
-            plot(nanmean(bout_proportions{s,1}(i_experiment_reps == er & i_group_tags == g,:,...
-                nights_crop{set_token}(nights{set_token})),3)','color',...
-                cmap_2{set_token}(col+1,:)+(1-cmap_2{set_token}(col+1,:))*(1-(1/(5)^.5)),'linewidth',1.5); % night 
-            plot(nanmean(bout_proportions{s,1}(i_experiment_reps == er & i_group_tags == g,:,...
-                days_crop{set_token}(days{set_token})),3)','color',...
-                cmap_2{set_token}(col,:)+(1-cmap_2{set_token}(col,:))*(1-(1/(5)^.5)),'linewidth',1.5); % day 
+            % Plot Spread
+            % Day
+            spread_cols(1,:) = plotSpread(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
+                days_crop{set_token}(days{set_token})),3),...
+                'distributionColors',cmap_2{set_token}(col,:),'spreadWidth',sep,'showMM',2,'xValues',1:numComp(s));
+            spread_cols{2}.LineWidth = 3; spread_cols{2}.Color = [1 0.5 0]; % Change Mean properties
+            spread_cols{2}.MarkerSize = 12;
             
-            % Plot mean probabilities 
-            legend_lines(2,1) = plot(nanmean(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
-                nights_crop{set_token}(nights{set_token})),3))','color',...
-                cmap_2{set_token}(col+1,:),'linewidth',5); % night 
-            legend_lines(1,1) = plot(nanmean(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
-                days_crop{set_token}(days{set_token})),3))','color',...
-                cmap_2{set_token}(col,:),'linewidth',5); % day 
+            % Night
+            spread_cols(2,:) = plotSpread(nanmean(bout_proportions{s,1}...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
+                nights_crop{set_token}(nights{set_token})),3),...
+                'distributionColors',cmap_2{set_token}(col+1,:),'spreadWidth',sep,'showMM',2,'xValues',(1:numComp(s)) + sep);
+            spread_cols{2,2}.LineWidth = 3; spread_cols{2,2}.Color = [1 0.5 0]; % Change Mean properties
+            spread_cols{2,2}.MarkerSize = 12;
             
-            col = col + 2;
         end
         
         % Axis etc
+        set(findall(ax,'type','line'),'markersize',15); % change marker sizes
         axis tight
         box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
         xlabel(horzcat(strings{s},' Clusters'),'Fontsize',32);
-        set(gca, 'XTick', 1:numComp(s));
+        set(gca, 'XTick', (1:numComp(s))+sep/2);
+        set(gca,'XTickLabels',bp_order(s,:),'Fontsize',32);
         ylabel('Probability','Fontsize',32);
         
         if er == 1 && s == 1
-            [~,icons,plots,~] = legend(legend_lines,'Day','Night');
-            legend('boxoff'); set(icons(1:size(legend_lines,1)),'Fontsize',32) ; set(plots,'LineWidth',5);
+            scrap = get(gca,'Children');
+            [~,icons,plots,~] = legend([scrap(end) scrap(2)],'Day','Night');
+            legend('boxoff'); set(plots(1:2,1),'MarkerSize',15); set(icons(1:2),'Fontsize',32) ;
         end
     end
+    
 end
 
-clear er set_token s col g legend_lines icons plots 
+clear er set_token s ax col sep g spread_cols scrap icons plots
 
 %% Bout Probabilities Histograms - Conditions 
     % Plots Day & Night on seperate axes 
     % Plots a mean + SEM 
+    % Sorted based on the WT sorting above 
     
 for er = 2:max(experiment_reps) % for each group of experiments
-    figure;
+    figure; clear legend_lines
     set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
     for s = 1:2 % for active/inactive clusters
         subplot(2,2,s); hold on; set(gca,'FontName','Calibri'); clear l_top; 
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             % Means
             legend_lines(1,g) = plot(nanmean(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
                 days_crop{set_token}(days{set_token})),3))','color',...
                 cmap{set_token}(g,:),'linewidth',5);
             % Std 
             clear l_mean l_std; 
             l_mean = nanmean(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
                 days_crop{set_token}(days{set_token})),3)); 
             l_std = nanstd(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
                 days_crop{set_token}(days{set_token})),3)); 
             plot([1:numComp(s) ; 1:numComp(s)],...
                 [(l_mean - l_std) ; l_mean + l_std],'color',...
@@ -480,9 +494,10 @@ for er = 2:max(experiment_reps) % for each group of experiments
         end
         
         % Axis etc
-        axis([1 numComp(s) 0 max(l_top)]);
+        axis([0.5 numComp(s)+0.5 0 max(l_top)]);
         box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
         set(gca,'XTick', 1:numComp(s)); 
+        set(gca,'XTickLabels',bp_order(s,:),'Fontsize',32);
         if s == 1
             ylabel('Probability','Fontsize',32);
         end
@@ -498,16 +513,16 @@ for er = 2:max(experiment_reps) % for each group of experiments
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             % Means
             plot(nanmean(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
                 nights_crop{set_token}(nights{set_token})),3))','color',...
                 cmap{set_token}(g,:),'linewidth',5);
             % Std
             clear l_mean l_std;
             l_mean = nanmean(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
                 nights_crop{set_token}(nights{set_token})),3));
             l_std = nanstd(nanmean(bout_proportions{s,1}...
-                (i_experiment_reps == er & i_group_tags == g,:,...
+                (i_experiment_reps == er & i_group_tags == g,bp_order(s,1:numComp(s)),...
                 nights_crop{set_token}(nights{set_token})),3));
             plot([1:numComp(s) ; 1:numComp(s)],...
                 [(l_mean - l_std) ; l_mean + l_std],'color',...
@@ -517,9 +532,9 @@ for er = 2:max(experiment_reps) % for each group of experiments
         end
         
         % Night patch
-        axis([1 numComp(s) 0 max(l_top)]);
+        axis([0.5 numComp(s)+0.5 0 max(l_top)]);
         a = 1;
-        r(a) = rectangle('Position',[1 0 (numComp(s)-1) max(l_top)],...
+        r(a) = rectangle('Position',[0.5 0 (numComp(s)+0.5) max(l_top)],...
             'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
         uistack(r(a),'bottom'); % Send to back
         
@@ -527,6 +542,7 @@ for er = 2:max(experiment_reps) % for each group of experiments
         box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
         xlabel(horzcat(strings{s},' Clusters'),'Fontsize',32);
         set(gca, 'XTick', 1:numComp(s));
+        set(gca,'XTickLabels',bp_order(s,:),'Fontsize',32);
         if s == 1
             ylabel('Probability','Fontsize',32);
         end
