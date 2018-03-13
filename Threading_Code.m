@@ -1,4 +1,4 @@
-% Threading Code  
+%% Threading Code  
 
 % Aims to use data from State_Space_4 (clustered active and inactive bouts)
     % To study transition dynamics 
@@ -6,17 +6,17 @@
 %% Required scripts 
 
 %% Notes 
-
 % The code for calculating the transition probabilities is adapted from 
  %https://uk.mathworks.com/matlabcentral/answers/57877-seeking-help-creating-a-transition-probability-matrix-for-a-markov-chain
+
+%% Settings 
+set(0,'DefaultFigureWindowStyle','docked'); % dock figures 
+set(0,'defaultfigurecolor',[1 1 1]); % white background
 
  %% Load data (Post State_Space_4)
     % Note that running State_Space_4 first is necessary to re-order the
         % Clusters by a suitable metric 
-        
-set(0,'DefaultFigureWindowStyle','docked'); % dock figures 
-set(0,'defaultfigurecolor',[1 1 1]); % white background
-
+      
 % Load  
 load('D:\Behaviour\SleepWake\Re_Runs\Post_State_Space_Data\New\180111.mat');
 
@@ -404,11 +404,15 @@ clear er set_token s c g legend_lines scrap a n r
 
 %% Bout Probabilities Order
 % Sort based on WT mean day probability 
+er = 1; 
+set_token = find(experiment_reps == er,1,'first'); % used for each experiments sets settings
 
 [~,bp_order(1,:)] = sort(nanmean(nanmean(bout_proportions{1,1}...
-    (i_experiment_reps == 1,:,days_crop{1}(days{1})),3)),'descend'); % active clusters
+    (i_experiment_reps == er,:,days_crop{set_token}(days{set_token})),3)),'descend'); % active clusters
 bp_order(2,1:numComp(2)) = 1:numComp(2); % inactive clusters (keep sorted by length)
 bp_order(bp_order == 0) = NaN; % remove zeros
+
+clear er set_token 
 
 %% Bout Probabilities Histograms WT - Scatter
 % Plots Individual Fish
@@ -420,7 +424,7 @@ for er = 1 % for the WT experiments
     for s = 1:2 % for active/inactive clusters
         ax = subplot(2,1,s); hold on; set(gca,'FontName','Calibri');
         col = 1; % start colour counter
-        sep = 0.75/2; clear spread_cols
+        sep = 0.75/2; clear spread_cols; 
         for g = 1:max(i_group_tags(i_experiment_reps == er)) % For each group
             
             % Plot Spread
@@ -502,7 +506,7 @@ for er = 2:max(experiment_reps) % for each group of experiments
             ylabel('Probability','Fontsize',32);
         end
         
-        % Legend (here)
+        % Legend
         if s == 2
             [~,icons,plots,~] = legend(legend_lines,geno_list{set_token}.colheaders,...
                 'location','northeast');
@@ -1109,7 +1113,8 @@ end
 clear temp tc scrap inf_r f
 
 %% Real vs Shuffled Z-Scores Pdf 
-
+    % Note: 180313 - may be interesting to compare Kurtosis? 
+    
 for tc = 1:size(gCount_norm,2) % for each shuffle
     tb(:,tc) = minmax(gCount_norm{1,tc}(:)'); % find it's max & min z-score
 end
@@ -1173,6 +1178,7 @@ legend(legend_lines,'Real Data','Shuffled Data');
 legend('boxoff'); 
 
 % Note: Remember to add in ? & ? symols to the ends 
+
 %% "Common-ness" of Grammar
     % Note: 180228 this may be more interesting for only the sequences that
     % occur above chance 
