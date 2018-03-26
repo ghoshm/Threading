@@ -51,7 +51,7 @@ end
 clear e gap edges
 
 %% Threading Every Hour With Multiple Shuffles of Data 
-% Slow, Roughly 3 hours for 629 fish, each with 10 shuffles 
+% Very Slow, Roughly 16 hours for 629 fish, each with 10 shuffles 
 % Note that I'm now keeping only the real time windows
 % Rather than storing multiple copies of these (which are redundant)
 
@@ -159,16 +159,17 @@ save('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180324_Hours','-v7.3');
 %% Load Threaded Data & Seperately Compressed Data From Legion 
 
 % load threaded data 
-load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Compression_Hours_Results_Final.mat'); % load compressed data 
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180324_Hours.mat')
 
-% 
-
+% load compressed data 
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Compression_Hours_Results_Final.mat','totSavings'); 
+ 
 %% Calculate Relative Compressibility Each Day/Night
 % The compressibility of a sequence of uncompressed length l is given by the sum of the savings S 
 % at each iteration divided by l (Gomez-Marin et al.,2016) 
 
 % Uncompressed lengths 
-tw = 48; % hard coded maximum number of time windows 
+tw = size(totSavings,2); % maximum number of time windows 
 seq_lengths = nan(size(threads,1),tw,'single'); % fish x time windows  
 
 for f = 1:size(threads,1) % for each fish 
@@ -188,17 +189,21 @@ end
 
 clear f 
 
-%% WT Relative Compressibility Figure
-
+%% Relative Compressibility Figure
+er = 1; 
 set_token = find(experiment_reps == er,1,'first'); % settings
 figure;
 hold on; set(gca,'FontName','Calibri'); clear scrap;
 
 for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
     clear data;
-    data = compressibility_rel(i_experiment_reps == er,time_window{set_token}(1):time_window{set_token}(2));
+    data = compressibility_rel(i_experiment_reps == er & i_group_tags == g,:);
+    
+    if er == 1 % for the WT experiments 
     plot(data',...
         'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+    end 
+    
     errorbar(nanmean(data),nanstd(data),...
         'color',cmap{set_token}(g,:),'linewidth',3);
     
@@ -210,33 +215,66 @@ y_lims = [(min(scrap(1,:)) + min(scrap(1,:))*0.05) ...
     (max(scrap(2,:)) + max(scrap(2,:))*0.05)]; % Add a bit of space either side
    
 % Night Patches 
-a = 1; night_start = first_night{set_token}; % Start counters
+a = 1; night_start = 15; % hard coded counter
 for n = 1:size(nights{set_token},2) % For each night
-    r(a) = rectangle('Position',[(night_start-0.5) y_lims(1)...
-        1 (y_lims(2)-y_lims(1))],...
+    r(a) = rectangle('Position',[(night_start) y_lims(1)...
+        9 (y_lims(2)-y_lims(1))],...
         'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
     uistack(r(a),'bottom'); % Send to back
-    a = a + 1; night_start = night_start + 2; % Add to counters
+    a = a + 1; night_start = night_start + 24; % Add to counters
 end
     
 box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-set(gca,'XTick',[]); 
-xlabel('Time (Days/Nights)','Fontsize',32); % X Labels 
+xlabel('Time (Hours)','Fontsize',32); % X Labels 
 ylabel({'Relative' ; 'Compressibility' ;'(Z-Score)'},'Fontsize',32); % Y Labels
-axis([0.5 size(data,2)+0.5 y_lims]); 
+axis([1 size(data,2)+0.5 y_lims]); 
 
 clear er set_token g data scrap y_lims a n r 
 
-%% WT Relative Compressibility Two Way ANOVA
-er = 1;
+%% WT Relative Compressibility Day vs Night 
+
+figure; hold on; 
+er = 1; g = 1; % settings
 set_token = find(experiment_reps == er,1,'first'); % settings
+
+scrap = compressibility_rel(i_experiment_reps == er & i_group_tags == g,:);
+dn_hour = zeros(1,size(scrap,2)); % day and night hours 
+dn_hour([1:14 25:38]) = 1; % day and night hours 
+
+data(:,1) = nanmean(scrap(:,dn_hour == 1),2); 
+data(:,2) = nanmean(scrap(:,dn_hour == 0),2); 
+
+plot(data',...
+    'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+errorbar(nanmean(data),nanstd(data),...
+    'color',cmap{set_token}(g,:),'linewidth',3);
+
+y_lims = [(min(data(:)) + min(data(:))*0.05) ...
+    (max(data(:)) + max(data(:))*0.05)]; % Add a bit of space either side
+
+% Night Patch 
+a = 1;
+r(a) = rectangle('Position',[1.5 y_lims(1)...
+    1 (y_lims(2)-y_lims(1))],...
+    'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
+uistack(r(a),'bottom'); % Send to back
+
+box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+set(gca,'XTick',1:2); 
+set(gca,'XTickLabels',{'Day','Night'}); 
+ylabel({'Relative' ; 'Compressibility' ;'(Z-Score)'},'Fontsize',32); % Y Labels
+axis([0.5 size(data,2)+0.5 y_lims]);
+
+clear g scrap dn_hour y_lims a r 
+
+%% WT Relative Compressibility Two Way ANOVA
 
 % Grouping Variables
 anova_group = repmat(i_group_tags(i_experiment_reps==er),...
-    [size([days{set_token} nights{set_token}],2),1])'; % groups
+    [size(data,2),1])'; % groups
 
 anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),...
-    [size([days{set_token} nights{set_token}],2),1])'; % experiments
+    [size(data,2),1])'; % experiments
 
 anova_time = [];
 for t = time_window{set_token}(1):time_window{set_token}(2) % For each time window
@@ -263,16 +301,17 @@ else
 end
 
 % Comparison
-scrap = compressibility_rel(i_experiment_reps == er,time_window{set_token}(1):time_window{set_token}(2));
-scrap = scrap(:)'; % Vectorise
+data = data(:)'; 
 
-[twa.rc.p{er}(:,1),~,twa.rc.stats{er}] = anovan(scrap,...
+[twa.rc.p{er}(:,1),~,twa.rc.stats{er}] = anovan(data,...
     {anova_group,anova_time,anova_development,anova_experiment},...
     'display','off','model','full');
 
-clear er set_token anova_group anova_experiment anova_time anova_development scrap
+clear er g set_token scrap dn_hour h data anova_group anova_experiment ... 
+    anova_time anova_development 
 
 %% Load & Reformat Hour Grammar Data From Legion 
+
 
 %% Identifying Interesting Sequences (is)
     % To seperate each hour 
