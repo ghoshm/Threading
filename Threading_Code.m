@@ -1094,12 +1094,12 @@ end
 % calculate inf replacements 
 scrap = zeros(1,size(temp,2),'single'); % 1 x real & shuffled data  
 scrap(1,1) = 1; 
-inf_r = round((scrap(1,1) - nanmean(scrap(1,2:end)))/nanstd(scrap)); 
+inf_r = (scrap(1,1) - nanmean(scrap(1,2:end)))/nanstd(scrap); 
 
 % Fill data 
 for tc = 1:size(temp,2) % for real & shuffled data
     for f = 1:size(temp,1) % for each fish
-        gCount_norm{1,tc}(:,:,f) = round(temp{f,tc}); % fill rounded data
+        gCount_norm{1,tc}(:,:,f) = temp{f,tc}; % fill data
     end
     
     % Replace -Inf & Inf Values 
@@ -1112,11 +1112,11 @@ end
 
 clear temp tc scrap inf_r f
 
-%% Real vs Shuffled Z-Scores Pdf 
+%% Real vs Shuffled Z-Scores Pdf (Rounded) 
     % Note: 180313 - may be interesting to compare Kurtosis? 
     
 for tc = 1:size(gCount_norm,2) % for each shuffle
-    tb(:,tc) = minmax(gCount_norm{1,tc}(:)'); % find it's max & min z-score
+    tb(:,tc) = minmax(round(gCount_norm{1,tc}(:)')); % find it's max & min z-score
 end
 tb = min(tb(:)):max(tb(:)); % vector from min-max z-score
 tb_z = find(tb == 0); % zero location
@@ -1129,7 +1129,8 @@ tc_pdf_binned = nan(size(gCount_norm{1,1},3),21,size(gCount_norm,2),'single');
 tic
 for f = 1:size(gCount_norm{1,1},3) % for each fish
     for tc = 1:size(gCount_norm,2) % for each shuffle
-        clear data pd; data = gCount_norm{1,tc}(:,:,f); data = data(:);
+        clear data pd; 
+        data = round(gCount_norm{1,tc}(:,:,f)); data = data(:);
         pd = fitdist(data,'kernel','Width',1); % Fit pdf
         tc_pdf(f,:,tc) = pdf(pd,tb(1):tb(end)); % all data
         
@@ -1148,6 +1149,9 @@ end
 toc
 
 clear tc f data pd
+
+%% Calculate Skewness 
+skewness(tc_pdf(f,:,tc)'); 
 
 %% Load Data
 gCount_norm(:,2:end) = []; % remove excess shuffled data 
@@ -1177,7 +1181,7 @@ xlabel('Z-Score'); ylabel('Probability');
 legend(legend_lines,'Real Data','Shuffled Data'); 
 legend('boxoff'); 
 
-% Note: Remember to add in ? & ? symols to the ends 
+% Note: Remember to add in greater & less than symols to the ends 
 
 %% "Common-ness" of Grammar
     % Note: 180228 this may be more interesting for only the sequences that
@@ -1255,12 +1259,18 @@ legend('boxoff');
 
 %% Identifying Interesting Sequences (is)
 
+% 180328 Notes 
+% 1. Need to zscore mRMR_data
+    % Peng "Each feature variable in the raw data was preprocessed to have 
+    % zero mean-value and unit variance (i.e., transformed to their
+    % z-scores). 
+
 % 180215 Notes
 % 1. https://uk.mathworks.com/help/stats/examples/selecting-features-for-classifying-high-dimensional-mRMR_data.html#d119e2598
 % 2. https://uk.mathworks.com/help/stats/fitcdiscr.html
 
 % Settings
-comps = 500; % number of sequences to identify
+comps = 250; % number of sequences to identify
 
 % mRMR Approach
 for er = 1:max(experiment_reps) % for each experiment repeat
@@ -1276,7 +1286,9 @@ for er = 1:max(experiment_reps) % for each experiment repeat
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
             reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),...
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])']);
-        mRMR_tw{er,1} = ones(size(mRMR_data{er,1},1),1)*2; mRMR_tw{er,1}(1:size(mRMR_data{er,1},1)/2) = 1; % day (1) vs night (2) mRMR_data
+        
+        mRMR_tw{er,1} = ones(size(mRMR_data{er,1},1),1)*2; 
+        mRMR_tw{er,1}(1:size(mRMR_data{er,1},1)/2) = 1; % day (1) vs night (2) 
         
         mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
         
@@ -1300,29 +1312,22 @@ for er = 1:max(experiment_reps) % for each experiment repeat
             
             % mRMR
             [comps_v{er,1}(counter,:)] = mrmr_miq_d(...
-                mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
+                zscore(mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:)),...
                 mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),comps);
             
             % Classifiers 
             for s = 1:comps % for each comp sequence
-%                 if er == 1 % for the WT data
                     % Fit a linear classifier as you add features
                     % Using 10 fold cross validation
                     % Hold 10% of mRMR_data back by default
                     Mdl = fitcdiscr(...
-                        mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
-                        comps_v{er,1}(counter,1:s)),...
+                        zscore(mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
+                        comps_v{er,1}(counter,1:s))),...
                         mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
                         'DiscrimType','linear','CrossVal','on');
-%                 else
-%                     Mdl = fitcdiscr(...
-%                         mRMR_data{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,...
-%                         comps_v{er,counter}(1:s,1)),...
-%                         mRMR_tw{er,1}(mRMR_tw{er,1} == g_one | mRMR_tw{er,1} == g_two,:),...
-%                         'DiscrimType','linear','CrossVal','on','Leaveout','on');
-%                     disp(horzcat('Fit ',num2str(s),' LOOCV of ',numstr(comps)));
-%                 end
                 Mdl_loss{er,1}(counter,s) = kfoldLoss(Mdl);
+                Mdl_loss{er,2}(counter,s) = nanstd(kfoldLoss(Mdl,'Mode','individual')); 
+                %disp(num2str(s)); 
             end
             
             % Minimal Feature Space
@@ -1330,7 +1335,12 @@ for er = 1:max(experiment_reps) % for each experiment repeat
                 mRMR_ms(er,counter) = find(smooth(Mdl_loss{er,1}(counter,:),3) == ...
                     min(smooth(Mdl_loss{er,1}(counter,:),3)),1,'first');
             else
-                mRMR_ms(er,counter) = find(Mdl_loss{er,1}(counter,:) < 0.05,1,'first'); 
+                try
+                    mRMR_ms(er,counter) = find(Mdl_loss{er,1}(counter,:) < 0.05,1,'first');
+                catch
+                    mRMR_ms(er,counter) = find(smooth(Mdl_loss{er,1}(counter,:),3) == ...
+                        min(smooth(Mdl_loss{er,1}(counter,:),3)),1,'first');
+                end
             end
             
             counter = counter + 1; % add to counter
@@ -1424,24 +1434,24 @@ subplot(1,2,2); hold on; set(gca,'Ydir','reverse');
 plot([0 0],[(1-0.5) (mRMR_ms(er,1)+0.5)],'-k','linewidth',1.5); clear scrap;
 for s = 1:mRMR_ms(er,1) % for each contextual motif 
     clear data; 
-    data = nanmean(squeeze(gCount_norm{1,1}(comps_v{er,1}(1,s),...
+    data = squeeze(gCount_norm{1,1}(comps_v{er,1}(1,s),...
         time_window{set_token}(1):time_window{set_token}(2),...
-        i_experiment_reps == er))');
-    plot([nanmean(data(1:2:end)),nanmean(data(2:2:end))],[s s],'color',...
-        night_color{set_token},'linewidth',1.5); 
-    scrap(:,s) = minmax([nanmean(data(1:2:end)),nanmean(data(2:2:end))])'; 
+        i_experiment_reps == er))';
+    
     for g = 1:2 % for day/night
-        scatter(nanmean(data(g:2:end)),s,...
-            'markerfacecolor',cmap_2{set_token}(g,:),...
-            'markeredgecolor',cmap_2{set_token}(g,:))
-    end 
+        errorbar(nanmean(reshape(data(:,g:2:end),[],1)),s,...
+            nanstd(reshape(data(:,g:2:end),[],1)),'horizontal','-o',...
+            'markersize',3,'MarkerEdgeColor',cmap_2{set_token}(g,:)...)
+            ,'MarkerFaceColor',cmap_2{set_token}(g,:),'linewidth',1.5,'color',cmap_2{set_token}(g,:))
+    end
+    
 end 
-axis([min(scrap(1,:)) max(scrap(2,:)) (1-0.5) (mRMR_ms(er,1)+0.5)]);
+axis tight
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 xlabel('Z-Score','Fontsize',32);
 set(gca,'YTick',[]); 
 
-clear er set_token scrap ax c s data g scrap
+clear er set_token scrap ax s data g 
 
 %% Grammar Comparison Figure  
 
