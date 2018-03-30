@@ -60,11 +60,12 @@ dn_hour([1:14 25:38]) = 1; % day (1) and night (2) hours
 compressibility = nan(size(threads,1),tw,'single'); % fish x max time hour bins
 
 % fill data
-for f = 1:124 %size(threads,1) % for each fish
-    for h = 1:max(threads{1,3,1}) % for each hour
+for f = 1:size(threads,1) % for each fish
+    for h = 1:max(threads{f,3,1}) % for each hour
         try
             compressibility(f,h) = nanmean(totSavings_cells{f,1}(...
                 threads{f,3,1}(chunks{f,1}) == h)/step); 
+            % take a mean score 
         catch
         end
     end
@@ -83,16 +84,20 @@ for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
     clear data;
     data = compressibility(i_experiment_reps == er & i_group_tags == g,:);
     
-    if er == 1 % for the WT experiments 
-    plot(data',...
-        'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-    end 
+    if er == 1 % for the WT experiments
+        plot(data',...
+            'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+        scrap(1,g) = min(data(:));
+        scrap(2,g) = max(data(:));
+        
+    else 
+        scrap(1,g) = min(nanmean(data) - nanstd(data));
+        scrap(2,g) = max(nanmean(data) + nanstd(data)); 
+    end
     
     errorbar(nanmean(data),nanstd(data),...
         'color',cmap{set_token}(g,:),'linewidth',3);
     
-    scrap(1,g) = min(data(:));
-    scrap(2,g) = max(data(:));
 end
 
 y_lims = [(min(scrap(1,:)) - min(scrap(1,:))*0.05) ...
@@ -111,86 +116,96 @@ end
 box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
 xlabel('Time (Hours)','Fontsize',32); % X Labels 
 ylabel('Compressibility','Fontsize',32); % Y Labels
-axis([1 size(data,2)+0.5 y_lims]); 
+axis([1 (n*24)+0.5 y_lims]); 
 
 clear er set_token g data scrap y_lims a night_start n r 
 
 %% WT Relative Compressibility Day vs Night 
+figure;
+for er = 1:max(experiment_reps) % for each group of experiments
+    set_token = find(experiment_reps == er,1,'first'); % settings
+    subplot(2,3,er); counter = 1; % counts groups for plots
+    hold on; set(gca,'FontName','Calibri'); clear scrap;
+    
+    for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
+        clear data; 
+        data(:,1) = nanmean(compressibility(i_experiment_reps == er & i_group_tags == g,dn_hour == 1),2); 
+        data(:,2) = nanmean(compressibility(i_experiment_reps == er & i_group_tags == g,dn_hour == 2),2); 
+        plot([counter,counter+1],data,...
+            'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
+        errorbar([counter,counter+1],nanmean(data),nanstd(data),...
+            'color',cmap{set_token}(g,:),'linewidth',3);
+        counter = counter + 2; % add to counter
+        
+        scrap(1,g) = min(data(:)); 
+        scrap(2,g) = max(data(:)); 
+    end
+    
+    box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+    if er == 1 % for the WT Data 
+        set(gca, 'XTick', [1 2]); % set X-ticks
+        set(gca,'XTickLabels',{'Day','Night'}); % X Labels
+    else % for the other experiments 
+        set(gca,'XTickLabels',geno_list{set_token}.colheaders); % X Labels
+    end
+    ylabel('Compressibility','Fontsize',32); % Y Labels
+    axis([0.5 (max(i_group_tags(i_experiment_reps == er))*2)+.5 ...
+        (min(scrap(1,:)) - (min(scrap(1,:))*0.05)) (max(scrap(2,:)) + (max(scrap(2,:))*0.05))]);
+end
 
-figure; hold on; 
-er = 1; g = 1; % settings
-set_token = find(experiment_reps == er,1,'first'); % settings
-
-scrap = compressibility(i_experiment_reps == er & i_group_tags == g,:);
-
-data(:,1) = nanmean(scrap(:,dn_hour == 1),2); 
-data(:,2) = nanmean(scrap(:,dn_hour == 2),2); 
-
-plot(data',...
-    'color',cmap{set_token}(g,:)+(1-cmap{set_token}(g,:))*(1-(1/(5)^.5)),'linewidth',1.5);
-errorbar(nanmean(data),nanstd(data),...
-    'color',cmap{set_token}(g,:),'linewidth',3);
-
-y_lims = [(min(data(:)) - min(data(:))*0.05) ...
-    (max(data(:)) + max(data(:))*0.05)]; % Add a bit of space either side
-
-% Night Patch 
-a = 1;
-r(a) = rectangle('Position',[1.5 y_lims(1)...
-    1 (y_lims(2)-y_lims(1))],...
-    'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
-uistack(r(a),'bottom'); % Send to back
-
-box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
-set(gca,'XTick',1:2); 
-set(gca,'XTickLabels',{'Day','Night'}); 
-ylabel({'Relative' ; 'Compressibility' ;'(Z-Score)'},'Fontsize',32); % Y Labels
-axis([0.5 size(data,2)+0.5 y_lims]);
-
-clear er g scrap dn_hour y_lims a r 
+clear er set_token g scrap counter data 
 
 %% WT Relative Compressibility Two Way ANOVA
-er = 1; % settings
+dn_hour(1:14) = 1; dn_hour(15:24) = 2; dn_hour(25:38) = 3; dn_hour(39:48) = 4; 
 
-% Grouping Variables
-anova_group = repmat(i_group_tags(i_experiment_reps==er),...
-    [size(data,2),1])'; % groups
-
-anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),...
-    [size(data,2),1])'; % experiments
-
-anova_time = [];
-for t = time_window{set_token}(1):time_window{set_token}(2) % For each time window
-    anova_time = [anova_time ; ones(sum(i_experiment_reps==er),1)*mod(t,2)];
-    % Allocate alternating zeros and ones to each time window
-end
-anova_time = anova_time';
-%anova_time = anova_time(1:size(anova_time,2)/2); 
-
-% Development Grouping Variable
-if size(days_crop{set_token}(days{set_token}),2) == ...
-        size(nights_crop{set_token}(nights{set_token}),2) ...
-        && size(days_crop{set_token}(days{set_token}),2) > 1 % If there are an equal number of windows (>1)
+for er = 1:max(experiment_reps) % for each group of experiments
+    set_token = find(experiment_reps == er,1,'first'); % settings
+    clear data; 
     
-    anova_development = []; % development
-    anova_development = zeros(1,size(anova_group,2)); % Pre-allocate
-    d = 1:size(anova_development,2)/(size(time_window{set_token}(1):...
-        time_window{set_token}(2),2)/2):...
-        size(anova_development,2); % divide into "24h" windows
-    for t = 1:size(d,2)-1
-        anova_development(d(t):d(t+1)-1) = t;
+    for t = 1:max(dn_hour) % for each day/night 
+        data(:,t) = nanmean(compressibility(i_experiment_reps == er,dn_hour == t),2); 
+    end 
+    data(:,find(sum(isnan(data)) == size(data,1),1,'first'):end) = []; % remove nans on the end 
+
+    % Grouping Variables
+    anova_group = repmat(i_group_tags(i_experiment_reps==er),...
+        [size(data,2),1])'; % groups
+    
+    anova_experiment = repmat(i_experiment_tags(i_experiment_reps==er),...
+        [size(data,2),1])'; % experiments
+    
+    anova_time = [];
+    for t = time_window{set_token}(1):time_window{set_token}(2) % For each time window
+        anova_time = [anova_time ; ones(sum(i_experiment_reps==er),1)*mod(t,2)];
+        % Allocate alternating zeros and ones to each time window
     end
-else
-    anova_development = ones(size(anova_experiment)); % use all ones
+    anova_time = anova_time';
+    
+    % Development Grouping Variable
+    if size(days_crop{set_token}(days{set_token}),2) == ...
+            size(nights_crop{set_token}(nights{set_token}),2) ...
+            && size(days_crop{set_token}(days{set_token}),2) > 1 % If there are an equal number of windows (>1)
+        
+        anova_development = []; % development
+        anova_development = zeros(1,size(anova_group,2)); % Pre-allocate
+        d = 1:size(anova_development,2)/(size(time_window{set_token}(1):...
+            time_window{set_token}(2),2)/2):...
+            size(anova_development,2); % divide into "24h" windows
+        for t = 1:size(d,2)-1
+            anova_development(d(t):d(t+1)-1) = t;
+        end
+    else
+        anova_development = ones(size(anova_experiment)); % use all ones
+    end
+    
+    % Comparison
+    data = data(:)';
+    
+    [twa.rc.p{er}(:,1),~,twa.rc.stats{er}] = anovan(data,...
+        {anova_group,anova_time,anova_development,anova_experiment},...
+        'display','off','model','full');
+    
 end
-anova_development = ones(size(anova_experiment)); 
-
-% Comparison
-data = data(:)'; 
-
-[twa.rc.p{er}(:,1),~,twa.rc.stats{er}] = anovan(data,...
-    {anova_group,anova_time,anova_development,anova_experiment},...
-    'display','off','model','full');
 
 clear er anova_group anova_experiment anova_time t anova_development d data
 
