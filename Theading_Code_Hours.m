@@ -74,7 +74,7 @@ end
 
 clear f h 
 
-%% Relative Compressibility Figure
+%% Compressibility Every Hour - Figure
 er = 1; 
 set_token = find(experiment_reps == er,1,'first'); % settings
 figure;
@@ -116,11 +116,11 @@ end
 box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
 xlabel('Time (Hours)','Fontsize',32); % X Labels 
 ylabel('Compressibility','Fontsize',32); % Y Labels
-axis([1 (n*24)+0.5 y_lims]); 
+axis([1 (n*24) y_lims]); 
 
 clear er set_token g data scrap y_lims a night_start n r 
 
-%% WT Relative Compressibility Day vs Night 
+%% Compressibility Day vs Night 
 figure;
 for er = 1:max(experiment_reps) % for each group of experiments
     set_token = find(experiment_reps == er,1,'first'); % settings

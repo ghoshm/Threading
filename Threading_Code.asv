@@ -1363,26 +1363,7 @@ colormap default
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 c = colorbar; c.Label.String = 'Z-Score';
 xlabel('Motif','Fontsize',32); 
-set(gca,'YTick',[]); 
-set(gca,'YTick',[size(mRMR_data{er,1},1)/4 size(mRMR_data{er,1},1)*(3/4)]); 
-set(gca,'YTickLabels',{'Day' ; 'Night'},'Fontsize',32); 
-ylabel('Fish ID','Fontsize',32); 
-
-clear er c 
-
-%% Model Loss Figure 
-er = 1; % settings 
-set_token =  find(experiment_reps == er,1,'first'); % settings
-
-plot(smooth(Mdl_loss{er,1}(1,:),3),'color',cmap{set_token}(1,:),'linewidth',3); 
-plot([mRMR_ms(er,1) mRMR_ms(er,1)],...
-    [0 Mdl_loss{er,1}(1,mRMR_ms(er,1))],...
-    '--k','linewidth',1.5); 
-plot([0 mRMR_ms(er,1)],...
-    [Mdl_loss{er,1}(1,mRMR_ms(er,1)) Mdl_loss{er,1}(1,mRMR_ms(er,1))],...
-    '--k','linewidth',1.5); 
-
-
+set(gca,'YTick'
 %% Pairwise Classifier Figure
     % diag(Mdl_loss{5,1}(2:end,mRMR_ms(end,2:end)))
 
@@ -1436,19 +1417,8 @@ for g = 1:max(mRMR_tw{er,1}) % for each group
             'markerfacecolor',cmap{set_token}(g,:),...
             'markeredgecolor',cmap{set_token}(g,:));
     end
-      
-end
-set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-scrap = get(gca,'Children');
-if er == 1 % for the WT data
-    [~,icons,plots,~] = legend([scrap(2) scrap(1)],'Day','Night','location','best');
-else
     
 end
-legend('boxoff'); 
-set(gca,'XTick',[]); set(gca,'YTick',[]); 
-xlabel('tSNE 1','Fontsize',32); 
-ylabel('tSNE 2','Fontsize',32); 
 
 %% Interesting Motifs Figure 
 % Settings 
