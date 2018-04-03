@@ -1364,7 +1364,16 @@ data =  double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token})
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])']); 
 figure; 
 imagesc(zscore(data),[-0.5 0.5]); 
-colormap default %colormap(flip(lbmap(25,'BlueGray'))); 
+n = 15;
+CT = [linspace(cmap_2{1,1}(1,1),1,n)'...
+    linspace(cmap_2{1,1}(1,2),1,n)'...
+    linspace(cmap_2{1,1}(1,3),1,n)']; 
+CT = [CT ; [linspace(1,cmap_2{1,1}(2,1),n)'...
+    linspace(1,cmap_2{1,1}(2,2),n)'...
+    linspace(1,cmap_2{1,1}(2,3),n)']]; 
+CT(n,:) = [];
+CT = flip(CT); 
+colormap(CT); 
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 c = colorbar; c.Label.String = 'Z-Score';
 xlabel('Motif','Fontsize',32); 
@@ -1373,7 +1382,7 @@ set(gca,'YTick',[size(mRMR_data{er,1},1)/4 size(mRMR_data{er,1},1)*(3/4)]);
 set(gca,'YTickLabels',{'Day' ; 'Night'},'Fontsize',32); 
 ylabel('Fish ID','Fontsize',32); 
 
-clear er set_token data c 
+clear er set_token data n CT c 
 
 %% Model Loss Figure 
 er = 1; % settings 
