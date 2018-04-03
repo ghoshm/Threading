@@ -1356,10 +1356,15 @@ clear er set_token s Mdl
 
 %% Raw Data Example 
 er = 1; % settings 
-
+set_token =  find(experiment_reps == er,1,'first'); % settings
+clear data; 
+data =  double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),...
+            i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
+            reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),...
+            i_experiment_reps==er),size(grammar_mat{1,1},1),[])']); 
 figure; 
-imagesc(zscore(mRMR_data{er,1}),[-0.5 0.5]); 
-colormap default
+imagesc(zscore(data),[-0.5 0.5]); 
+colormap default %colormap(flip(lbmap(25,'BlueGray'))); 
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 c = colorbar; c.Label.String = 'Z-Score';
 xlabel('Motif','Fontsize',32); 
@@ -1368,20 +1373,34 @@ set(gca,'YTick',[size(mRMR_data{er,1},1)/4 size(mRMR_data{er,1},1)*(3/4)]);
 set(gca,'YTickLabels',{'Day' ; 'Night'},'Fontsize',32); 
 ylabel('Fish ID','Fontsize',32); 
 
-clear er c 
+clear er set_token data c 
 
 %% Model Loss Figure 
 er = 1; % settings 
 set_token =  find(experiment_reps == er,1,'first'); % settings
+figure; hold on; 
+clear data; 
+data = smooth(Mdl_loss{er,1}(1,:),3)'; 
 
-plot(smooth(Mdl_loss{er,1}(1,:),3),'color',cmap{set_token}(1,:),'linewidth',3); 
+a = plot(Mdl_loss{er,1}(1,:),'color',...
+    cmap_2{set_token}(1,:)+(1-cmap_2{set_token}(1,:))*(1-(1/(5)^.5)),'linewidth',3); % raw data 
+b = plot(data,'color',cmap{set_token}(1,:),'linewidth',3); % smoothed data
 plot([mRMR_ms(er,1) mRMR_ms(er,1)],...
-    [0 Mdl_loss{er,1}(1,mRMR_ms(er,1))],...
+    [0 data(1,mRMR_ms(er,1))],...
     '--k','linewidth',1.5); 
 plot([0 mRMR_ms(er,1)],...
-    [Mdl_loss{er,1}(1,mRMR_ms(er,1)) Mdl_loss{er,1}(1,mRMR_ms(er,1))],...
+    [data(1,mRMR_ms(er,1)) data(1,mRMR_ms(er,1))],...
     '--k','linewidth',1.5); 
 
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+xlabel('Motifs','Fontsize',32); 
+ylabel('Classification Error (%)','Fontsize',32); 
+set(gca,'YTickLabels',{(get(gca,'YTick')*100)},'Fontsize',32); % convert labels to percentages 
+legend([a b],'Raw Error','Smoothed Error','location','best'); 
+legend('boxoff'); 
+axis([1 size(data,2) ylim]); 
+
+clear er set_token data a b 
 
 %% Pairwise Classifier Figure
     % diag(Mdl_loss{5,1}(2:end,mRMR_ms(end,2:end)))
@@ -1406,26 +1425,70 @@ set(gca,'YTick',1:size(scrap,1)); set(gca,'YTickLabel',geno_list{set_token}.colh
 
 clear er set_token scrap g_one g_two counter ax c
 
-%% Minimal Feature Space Figure
-er = 1; % set interest
-set_token =  find(experiment_reps == er,1,'first'); % settings
+%% Calculating tSNE Spaces 
+for er = 1:max(experiment_reps) % for each experiment
 
-if er == 1
-    mRMR_tsne{er,1} = tsne(mRMR_data{er,1}(:,comps_v{er,1}(1,1:mRMR_ms(er,1))),...
-        'Algorithm','exact','Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
-        'Perplexity',30,'Standardize',1,'Verbose',0);
-else
-    scrap = [];
-    for c = 1:size(comps_v{er,1},1) % for each comparison
-        scrap = [scrap comps_v{er,1}(c,1:mRMR_ms(er,c))]; 
+    if er == 1
+        mRMR_tsne{er,1} = tsne(mRMR_data{er,1}(:,comps_v{er,1}(1,1:mRMR_ms(er,1))),...
+            'Algorithm','exact','Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+            'Perplexity',30,'Standardize',1,'Verbose',0);
+    else
+        mRMR_tsne_dim{er,1} = [];
+        for c = 1:size(comps_v{er,1},1) % for each comparison
+            mRMR_tsne_dim{er,1} = [mRMR_tsne_dim{er,1} comps_v{er,1}(c,1:mRMR_ms(er,c))];
+        end
+        mRMR_tsne_dim{er,1} = unique(mRMR_tsne_dim{er,1},'Stable');
+        mRMR_tsne{er,1} = tsne(mRMR_data{er,1}(:,mRMR_tsne_dim{er,1}),...
+            'Algorithm','exact','Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
+            'Perplexity',30,'Standardize',1,'Verbose',0);
     end
-    scrap = unique(scrap); 
-    mRMR_tsne{er,1} = tsne(mRMR_data{er,1}(:,scrap),...
-        'Algorithm','exact','Exaggeration',4,'NumDimensions',2,'NumPCAComponents',0,...
-        'Perplexity',30,'Standardize',1,'Verbose',0);
 end
 
-figure; hold on;
+clear er set_token  
+
+%% Interesting Motifs Figure 
+% Settings 
+er = 4; % set interest
+set_token =  find(experiment_reps == er,1,'first'); % settings
+
+% Motifs
+figure;
+subplot(1,3,1); % subplot
+clear scrap;
+scrap = grammar_mat{1,1}(comps_v{er,1}(1,1:mRMR_ms(er,1)),:); % grab motifs
+scrap(:,sum(isnan(scrap)) == mRMR_ms(er,1)) = [];
+ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
+colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+set(ax,'CDataMapping','direct');
+%c = colorbar; c.Label.String = 'Cluster'; c.Location = 'westoutside';
+xlabel('Position in Motif','Fontsize',32);
+ylabel('Motif','Fontsize',32);
+
+% WT Constraint/Enrichment 
+subplot(1,3,2); hold on; set(gca,'Ydir','reverse'); 
+plot([0 0],[(1-0.5) (mRMR_ms(er,1)+0.5)],'-k','linewidth',1.5); clear scrap;
+for s = 1:mRMR_ms(er,1) % for each contextual motif 
+    clear data; 
+    data = squeeze(gCount_norm{1,1}(comps_v{er,1}(1,s),...
+        time_window{set_token}(1):time_window{set_token}(2),...
+        i_experiment_reps == er))';
+    
+    for g = 1:2 % for day/night
+        errorbar(nanmean(reshape(data(:,g:2:end),[],1)),s,...
+            nanstd(reshape(data(:,g:2:end),[],1)),'horizontal','-o',...
+            'markersize',3,'MarkerEdgeColor',cmap_2{set_token}(g,:)...)
+            ,'MarkerFaceColor',cmap_2{set_token}(g,:),'linewidth',1.5,'color',cmap_2{set_token}(g,:))
+    end
+    
+end 
+axis tight
+set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
+xlabel('Z-Score','Fontsize',32);
+set(gca,'YTick',[]); 
+
+% tSNE Plot 
+subplot(1,3,3); hold on; 
 for g = 1:max(mRMR_tw{er,1}) % for each group
     if er == 1 % for the wt mRMR_data
         scatter(mRMR_tsne{er,1}(mRMR_tw{er,1} == g,1),mRMR_tsne{er,1}(mRMR_tw{er,1} == g,2),...
@@ -1450,48 +1513,39 @@ set(gca,'XTick',[]); set(gca,'YTick',[]);
 xlabel('tSNE 1','Fontsize',32); 
 ylabel('tSNE 2','Fontsize',32); 
 
-%% Interesting Motifs Figure 
-% Settings 
-er = 1; % set interest
-set_token =  find(experiment_reps == er,1,'first'); % settings
+clear er set_token scrap ax c s data g icons plots     
 
-% Motifs
-figure;
-subplot(1,2,1); % subplot
-clear scrap;
-scrap = grammar_mat{1,1}(comps_v{er,1}(1,1:mRMR_ms(er,1)),:); % grab motifs
-scrap(:,sum(isnan(scrap)) == mRMR_ms(er,1)) = [];
-ax = imagesc(scrap,'AlphaData',isnan(scrap)==0); % imagesc with nan values in white
-colormap([cmap_cluster{2,1} ; cmap_cluster{1,1}]); % merged colormap
-set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-set(ax,'CDataMapping','direct');
-%c = colorbar; c.Label.String = 'Cluster';
-xlabel('Position in Motif','Fontsize',32);
-ylabel('Motif','Fontsize',32);
+%% PlotSpread of an IS. 
+% Settings
+s = comps_v{er,1}(1,1); % choose sequence of interest
+er = 5; 
+set_token =  find(experiment_reps == er,1,'first');
+sep = [0 0.75/2];
 
-% WT Constraint/Enrichment 
-subplot(1,2,2); hold on; set(gca,'Ydir','reverse'); 
-plot([0 0],[(1-0.5) (mRMR_ms(er,1)+0.5)],'-k','linewidth',1.5); clear scrap;
-for s = 1:mRMR_ms(er,1) % for each contextual motif 
-    clear data; 
-    data = squeeze(gCount_norm{1,1}(comps_v{er,1}(1,s),...
-        time_window{set_token}(1):time_window{set_token}(2),...
-        i_experiment_reps == er))';
+figure; 
+hold on; set(gca,'FontName','Calibri'); set(gca,'Fontsize',32);
+col = 1; 
+for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
     
-    for g = 1:2 % for day/night
-        errorbar(nanmean(reshape(data(:,g:2:end),[],1)),s,...
-            nanstd(reshape(data(:,g:2:end),[],1)),'horizontal','-o',...
-            'markersize',3,'MarkerEdgeColor',cmap_2{set_token}(g,:)...)
-            ,'MarkerFaceColor',cmap_2{set_token}(g,:),'linewidth',1.5,'color',cmap_2{set_token}(g,:))
+    for t = 1:2 % for day and night      
+        spread_cols = plotSpread(squeeze(gCount_norm{1,1}(s,time_window{set_token}(t),...
+            i_experiment_reps == er & i_group_tags == g)),'xValues',g + sep(t),...
+            'distributionColors',cmap_2{set_token}(col,:),'spreadWidth',sep(2),'showMM',2);
+        set(findall(gca,'type','line'),'markersize',30); % change marker sizes
+        spread_cols{2}.LineWidth = 6; spread_cols{2}.Color = 'k'; % Change Mean properties
+        spread_cols{2}.MarkerSize = 24;
+        col = col + 1; 
     end
-    
-end 
-axis tight
-set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
-xlabel('Z-Score','Fontsize',32);
-set(gca,'YTick',[]); 
+end
 
-clear er set_token scrap ax s data g 
+axis tight
+box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
+set(gca, 'XTick', (1:g)+(sep(2)/2));
+set(gca,'XTickLabels',1:g,'Fontsize',32);
+set(gca,'XTickLabels',geno_list{set_token}.colheaders)
+ylabel('Z-Score','Fontsize',32);     
+
+clear er set_token s sep col g t 
 
 %% Grammar Comparison Figure  
 
@@ -1668,31 +1722,6 @@ for er = [1 4 5] % for each group of experiments
         end
     end
 end
-
-%% PlotSpread of an IS. 
-
-figure; clear scrap;
-set_token = find(experiment_reps == er,1,'first'); % settings
-hold on; set(gca,'FontName','Calibri'); set(gca,'Fontsize',32);
-col = 1;
-
-for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
-    
-    for t = 1:2
-        spread_cols = plotSpread(squeeze(gCount_merge{1,1}(s,time_window{set_token}(t),...
-            i_experiment_reps == er & i_group_tags == g)),'xValues',g,...
-            'distributionColors',cmap_2{set_token}(col,:),'showMM',2);
-        set(findall(gca,'type','line'),'markersize',30); % change marker sizes
-        spread_cols{2}.LineWidth = 6; spread_cols{2}.Color = 'k'; % Change Mean properties
-        spread_cols{2}.MarkerSize = 24;
-        col = col + 1;
-    end
-    
-end
-set(gca,'XTick',1:g);
-set(gca,'XTickLabels',geno_list{set_token}.colheaders)
-ylabel({'Mean' ; 'Sequence Counts'},'Fontsize',32); % Y Labels
-xlabel('Melatonin','Fontsize',32); 
 
 %% Statistical Comparisons of Counts 
 
