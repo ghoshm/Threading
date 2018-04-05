@@ -74,7 +74,7 @@ end
 
 clear f h 
 
-%% Relative Compressibility Figure
+%% Compressibility Every Hour - Figure
 er = 1; 
 set_token = find(experiment_reps == er,1,'first'); % settings
 figure;
@@ -116,11 +116,11 @@ end
 box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
 xlabel('Time (Hours)','Fontsize',32); % X Labels 
 ylabel('Compressibility','Fontsize',32); % Y Labels
-axis([1 (n*24)+0.5 y_lims]); 
+axis([1 (n*24) y_lims]); 
 
 clear er set_token g data scrap y_lims a night_start n r 
 
-%% WT Relative Compressibility Day vs Night 
+%% Compressibility Day vs Night 
 figure;
 for er = 1:max(experiment_reps) % for each group of experiments
     set_token = find(experiment_reps == er,1,'first'); % settings
@@ -159,12 +159,14 @@ clear er set_token g scrap counter data
 dn_hour(1:14) = 1; dn_hour(15:24) = 2; dn_hour(25:38) = 3; dn_hour(39:48) = 4; 
 
 for er = 1:max(experiment_reps) % for each group of experiments
+    set_token = find(experiment_reps == er,1,'first'); % settings
     clear data; 
     
     for t = 1:max(dn_hour) % for each day/night 
-        data(:,t) = nanmean(compressibility(i_experiment_reps == er & i_group_tags == g,dn_hour == t),2); 
+        data(:,t) = nanmean(compressibility(i_experiment_reps == er,dn_hour == t),2); 
     end 
-    
+    data(:,find(sum(isnan(data)) == size(data,1),1,'first'):end) = []; % remove nans on the end 
+
     % Grouping Variables
     anova_group = repmat(i_group_tags(i_experiment_reps==er),...
         [size(data,2),1])'; % groups
@@ -178,7 +180,6 @@ for er = 1:max(experiment_reps) % for each group of experiments
         % Allocate alternating zeros and ones to each time window
     end
     anova_time = anova_time';
-    %anova_time = anova_time(1:size(anova_time,2)/2);
     
     % Development Grouping Variable
     if size(days_crop{set_token}(days{set_token}),2) == ...
@@ -196,7 +197,6 @@ for er = 1:max(experiment_reps) % for each group of experiments
     else
         anova_development = ones(size(anova_experiment)); % use all ones
     end
-    anova_development = ones(size(anova_experiment));
     
     % Comparison
     data = data(:)';
@@ -421,11 +421,10 @@ for er = 1:max(experiment_reps) % for each experiment repeat
         mRMR_tw{er,1} = reshape((ones(sum(i_experiment_reps == er),size(gCount_norm{1,1},2))) .* ...
             [1:size(gCount_norm{1,1},2)/2 1:size(gCount_norm{1,1},2)/2],[],1);
         
-        %mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
+        mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
         
         mRMR_data{er,1}(mRMR_tw{er,1} > 14,:) = [];
         mRMR_tw{er,1}(mRMR_tw{er,1} > 14,:) = [];
-        
         
         
     else

@@ -421,11 +421,10 @@ for er = 1:max(experiment_reps) % for each experiment repeat
         mRMR_tw{er,1} = reshape((ones(sum(i_experiment_reps == er),size(gCount_norm{1,1},2))) .* ...
             [1:size(gCount_norm{1,1},2)/2 1:size(gCount_norm{1,1},2)/2],[],1);
         
-        %mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
+        mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
         
         mRMR_data{er,1}(mRMR_tw{er,1} > 14,:) = [];
         mRMR_tw{er,1}(mRMR_tw{er,1} > 14,:) = [];
-        
         
         
     else
