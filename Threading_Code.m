@@ -1114,6 +1114,7 @@ clear temp tc scrap inf_r f
 
 %% Real vs Shuffled Z-Scores Pdf (Rounded) 
     % Note: 180313 - may be interesting to compare Kurtosis? 
+    % Note: 180406 - Sum from lower values onwards 
     
 for tc = 1:size(gCount_norm,2) % for each shuffle
     tb(:,tc) = minmax(round(gCount_norm{1,tc}(:)')); % find it's max & min z-score
@@ -1158,6 +1159,8 @@ gCount_norm(:,2:end) = []; % remove excess shuffled data
 load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180227.mat'); 
 
 %% Real vs Shuffled Z-Scores Figure 
+    % Note: 180406 - Sum from lower values onwards 
+
 er = 1; 
 set_token =  find(experiment_reps == er,1,'first'); % settings
 figure; 
@@ -1354,7 +1357,9 @@ end
 
 clear er set_token s Mdl
 
-%% Raw Data Example 
+%% Raw Data Example
+    % Note: 180406 Should Z-Score then sort data
+    
 er = 1; % settings 
 set_token =  find(experiment_reps == er,1,'first'); % settings
 clear data; 
@@ -1362,17 +1367,20 @@ data =  double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token})
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
             reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),...
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])']); 
+data = sortrows(data','descend','ComparisonMethod','auto')'; % sort by motifs   
 figure; 
-imagesc(zscore(data),[-0.5 0.5]); 
-n = 15;
+imagesc(zscore(data),[-0.5 0.5]); % imagesc 
+
+% colormap 
+n = 15; % number of colours 
 CT = [linspace(cmap_2{1,1}(1,1),1,n)'...
     linspace(cmap_2{1,1}(1,2),1,n)'...
     linspace(cmap_2{1,1}(1,3),1,n)']; 
 CT = [CT ; [linspace(1,cmap_2{1,1}(2,1),n)'...
     linspace(1,cmap_2{1,1}(2,2),n)'...
     linspace(1,cmap_2{1,1}(2,3),n)']]; 
-CT(n,:) = [];
-CT = flip(CT); 
+CT(n,:) = []; % remove repeat 
+CT = flip(CT); % flip colormap 
 colormap(CT); 
 set(gca,'FontName','Calibri'); box off; set(gca,'Layer','top'); set(gca,'Fontsize',32);
 c = colorbar; c.Label.String = 'Z-Score';
@@ -1526,26 +1534,42 @@ clear er set_token scrap ax c s data g icons plots
 
 %% PlotSpread of an IS. 
 % Settings
-s = comps_v{er,1}(1,1); % choose sequence of interest
-er = 5; 
-set_token =  find(experiment_reps == er,1,'first');
-sep = [0 0.75/2];
+er = 3; % set experiment of interest  
+s = comps_v{er,1}(2,5); % choose sequence of interest
+set_token =  find(experiment_reps == er,1,'first'); % settings 
+sep = [0 0.75/2]; % day/night spread 
 
 figure; 
 hold on; set(gca,'FontName','Calibri'); set(gca,'Fontsize',32);
 col = 1; 
+
 for g = 1:max(i_group_tags(i_experiment_reps == er)) % for each group
     
-    for t = 1:2 % for day and night      
-        spread_cols = plotSpread(squeeze(gCount_norm{1,1}(s,time_window{set_token}(t),...
-            i_experiment_reps == er & i_group_tags == g)),'xValues',g + sep(t),...
-            'distributionColors',cmap_2{set_token}(col,:),'spreadWidth',sep(2),'showMM',2);
-        set(findall(gca,'type','line'),'markersize',30); % change marker sizes
-        spread_cols{2}.LineWidth = 6; spread_cols{2}.Color = 'k'; % Change Mean properties
-        spread_cols{2}.MarkerSize = 24;
-        col = col + 1; 
-    end
+    % Days
+    spread_cols(1,:) = plotSpread(reshape(squeeze(gCount_norm{1,1}(s,days_crop{set_token}(days{set_token}),...
+        i_experiment_reps == er & i_group_tags == g)),[],1),'xValues',g + sep(1),...
+        'distributionColors',cmap_2{set_token}(col,:),'spreadWidth',sep(2),'showMM',2);
+    col = col + 1;
+    
+    % Nights
+    spread_cols(2,:) = plotSpread(reshape(squeeze(gCount_norm{1,1}(s,nights_crop{set_token}(nights{set_token}),...
+        i_experiment_reps == er & i_group_tags == g)),[],1),'xValues',g + sep(2),...
+        'distributionColors',cmap_2{set_token}(col,:),'spreadWidth',sep(2),'showMM',2);
+    
+    % Change Format 
+    set(findall(gca,'type','line'),'markersize',30); % change marker sizes
+    spread_cols{1,2}.LineWidth = 6; spread_cols{1,2}.Color = 'k'; % Change Mean properties
+    spread_cols{1,2}.MarkerSize = 24;
+    spread_cols{2,2}.LineWidth = 6; spread_cols{2,2}.Color = 'k'; % Change Mean properties
+    spread_cols{2,2}.MarkerSize = 24;
+    col = col + 1;
+
 end
+
+x_lims = xlim; 
+r(1) = plot([(x_lims(1)+(x_lims(1)*0.05)) (x_lims(2)+(x_lims(2)*0.05))],...
+    [0,0],'--','color','k','linewidth',1.5); % plot zero line  
+uistack(r(1),'bottom'); % Send to back
 
 axis tight
 box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32);
@@ -1554,7 +1578,7 @@ set(gca,'XTickLabels',1:g,'Fontsize',32);
 set(gca,'XTickLabels',geno_list{set_token}.colheaders)
 ylabel('Z-Score','Fontsize',32);     
 
-clear er set_token s sep col g t 
+clear er s set_token sep col g t spread_cols x_lims r 
 
 %% Grammar Comparison Figure  
 
