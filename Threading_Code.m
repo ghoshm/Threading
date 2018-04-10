@@ -1293,7 +1293,7 @@ for er = 1:max(experiment_reps) % for each experiment repeat
         mRMR_tw{er,1} = ones(size(mRMR_data{er,1},1),1)*2; 
         mRMR_tw{er,1}(1:size(mRMR_data{er,1},1)/2) = 1; % day (1) vs night (2) 
         
-        mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
+        %mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
         
     else
         % Organised to be:
@@ -1357,17 +1357,18 @@ end
 
 clear er set_token s Mdl
 
-%% Raw Data Example
-    % Note: 180406 Should Z-Score then sort data
+%% Sorted Raw Data Example
     
 er = 1; % settings 
 set_token =  find(experiment_reps == er,1,'first'); % settings
-clear data; 
-data =  double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),...
+clear scrap data; 
+scrap =  double([reshape(gCount_norm{1,1}(:,days_crop{set_token}(days{set_token}),...
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])' ; ...
             reshape(gCount_norm{1,1}(:,nights_crop{set_token}(nights{set_token}),...
             i_experiment_reps==er),size(grammar_mat{1,1},1),[])']); 
-data = sortrows(data','descend','ComparisonMethod','auto')'; % sort by motifs   
+scrap = sortrows(scrap','descend','ComparisonMethod','auto')'; % sort motifs   
+data = [sortrows(scrap(1:(size(scrap,1)/2),:),'descend'); ...
+    sortrows(scrap(((size(scrap,1)/2)+1):end,:),'descend')]; % sort fish (seperatly day/night)
 figure; 
 imagesc(zscore(data),[-0.5 0.5]); % imagesc 
 
@@ -1465,7 +1466,7 @@ clear er set_token
 
 %% Interesting Motifs Figure 
 % Settings 
-er = 4; % set interest
+er = 1; % set interest
 set_token =  find(experiment_reps == er,1,'first'); % settings
 
 % Motifs
@@ -1534,8 +1535,8 @@ clear er set_token scrap ax c s data g icons plots
 
 %% PlotSpread of an IS. 
 % Settings
-er = 3; % set experiment of interest  
-s = comps_v{er,1}(2,5); % choose sequence of interest
+er = 1; % set experiment of interest  
+s = comps_v{er,1}(1,1); % choose sequence of interest
 set_token =  find(experiment_reps == er,1,'first'); % settings 
 sep = [0 0.75/2]; % day/night spread 
 
