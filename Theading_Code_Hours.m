@@ -570,8 +570,10 @@ set_token = find(experiment_reps == er,1,'first'); % settings
 figure; hold on;
 for g = 1:max(mRMR_tw{er,1}) % for each group
     data = [squeeze(scrap(g,1:24,:))' ; squeeze(scrap(g,25:end,:))' ];
-    errorbar(nanmean(data),nanstd(data)/sqrt(124),...
-        'color',CT(g,:),'linewidth',3);
+%     errorbar(nanmean(data),nanstd(data)/sqrt(124),...
+%         'color',CT(g,:),'linewidth',3);
+plot((nanmean(data) - min(nanmean(data)))./range(nanmean(data)),'color',CT(g,:),'linewidth',3)
+
     pause(3);
 end
 

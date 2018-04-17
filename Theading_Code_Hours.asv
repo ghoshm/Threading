@@ -356,7 +356,7 @@ save('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180324_Hours','-v7.3');
 %% Load Grammar Data From Legion 
 
 % load grammar freq data 
-load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Grammar_Hours_Results_Final.mat','gCount_norm')
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\Grammar_Hours_Results_Final.mat','gCount_norm');
 
 % variables 
 dn_hour = ones(1,size(gCount_norm{1,1},2))*2; % day and night hours 
@@ -394,8 +394,8 @@ end
 clear temp tc scrap inf_r f shuffles
 
 %% Load threaded data 
-load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180227.mat'); 
-clear states raw_data
+load('D:\Behaviour\SleepWake\Re_Runs\Threading\New\180227.mat',...
+    '-regexp', '^(?!states|raw_data)\w'); % except states & raw data 
 
 %% Identifying Interesting Sequences (is)
 
@@ -412,20 +412,18 @@ for er = 1:max(experiment_reps) % for each experiment repeat
     % Grab Data
     if er == 1 % for the WT fish
         % Organised to be:
-        % rows = all day mRMR_data, then all night mRMR_data
-        % columns = sequences
+        % rows = fish 1 (all time windows), fish 2 (all time windows) etc 
+        % columns = sequences 
         mRMR_data{er,1} = ...
             double(reshape(gCount_norm{1,1}(:,:,i_experiment_reps == er),...
             size(gCount_norm{1,1},1),[])');
         
-        mRMR_tw{er,1} = reshape((ones(sum(i_experiment_reps == er),size(gCount_norm{1,1},2))) .* ...
-            [1:size(gCount_norm{1,1},2)/2 1:size(gCount_norm{1,1},2)/2],[],1);
+        mRMR_tw{er,1} = repmat([1:size(gCount_norm{1,1},2)/2]',[sum(i_experiment_reps == er)*2,1]);
         
         mRMR_data{er,1}(mRMR_data{er,1} < 0) = 0; % Remove negative values for now
         
-        mRMR_data{er,1}(mRMR_tw{er,1} > 14,:) = [];
-        mRMR_tw{er,1}(mRMR_tw{er,1} > 14,:) = [];
-        
+        mRMR_data{er,1}(mRMR_tw{er,1} > 14,:) = []; % keep only some data 
+        mRMR_tw{er,1}(mRMR_tw{er,1} > 14,:) = []; % keep only some data 
         
     else
         % Organised to be:
@@ -507,13 +505,13 @@ ylabel('Motif','Fontsize',32);
 
 clear er set_token scrap ax c
 
-%% Minimal Feature Space Figure
+%% Minimal Feature Space tSNE 
 er = 1; % set interest
 set_token = find(experiment_reps == er,1,'first'); % settings
 
 if er == 1
     motifs = []; 
-    for m = 1:size(mRMR_ms,2)
+    for m = 1:size(mRMR_ms,2) % for each comparison
         motifs = [motifs comps_v{er,1}(m,1:mRMR_ms(er,m))];
     end 
     motifs = unique(motifs); 
@@ -532,12 +530,19 @@ else
 %         'Perplexity',30,'Standardize',1,'Verbose',0);
 end
 
+% colormap
+n = length(min(mRMR_tw{er,1}):max(mRMR_tw{er,1})); % number of colours 
+CT = [linspace(cmap_2{1,1}(1,1),cmap_2{1,1}(2,1),n)'...
+    linspace(cmap_2{1,1}(1,2),cmap_2{1,1}(2,2),n)'...
+    linspace(cmap_2{1,1}(1,3),cmap_2{1,1}(2,3),n)']; 
+
 figure; hold on;
-for g = 1:max(mRMR_tw{er,1}) % for each group
+for g = min(mRMR_tw{er,1}):max(mRMR_tw{er,1}) % for each group
     if er == 1 % for the wt mRMR_data
         scatter(mRMR_tsne{er,1}(mRMR_tw{er,1} == g,1),mRMR_tsne{er,1}(mRMR_tw{er,1} == g,2),...
-            'markerfacecolor',cmap_2{set_token}(g,:),...
-            'markeredgecolor',cmap_2{set_token}(g,:));
+            'markerfacecolor',CT(g,:),...
+            'markeredgecolor',CT(g,:));
+        %pause(3);
     else
         scatter(mRMR_tsne{er,1}(mRMR_tw{er,1} == g,1),mRMR_tsne{er,1}(mRMR_tw{er,1} == g,2),...
             'markerfacecolor',cmap{set_token}(g,:),...
@@ -546,3 +551,48 @@ for g = 1:max(mRMR_tw{er,1}) % for each group
     
 end
 
+%% Motifs Over Time 
+
+% Best motif for each hour 
+scrap = gCount_norm{1,1}(comps_v{er,1}(:,1),:,i_experiment_reps == er);
+
+% 
+figure; hold on; 
+for g = 1:max(mRMR_tw{er,1}) % for each group 
+    plot(nanmean(scrap(g,:,:),3),'color',CT(g,:));
+    pause(3);
+end
+
+%% Motifs By Hour Figure 
+er = 1; % set interest
+set_token = find(experiment_reps == er,1,'first'); % settings
+
+figure; hold on;
+for g = 1:max(mRMR_tw{er,1}) % for each group
+    data = [squeeze(scrap(g,1:24,:))' ; squeeze(scrap(g,25:end,:))' ];
+    errorbar(nanmean(data),nanstd(data)/sqrt(124),...
+        'color',CT(g,:),'linewidth',3);
+    pause(3);
+end
+
+% Example Figure 
+g = 1; 
+figure; hold on; 
+data = [squeeze(scrap(g,1:24,:))' ; squeeze(scrap(g,25:end,:))'];
+errorbar(nanmean(data),nanstd(data)/sqrt(size(scrap,3)),...
+    'color',cmap{er}(1,:),'linewidth',3);
+y_lims = ylim; 
+
+% Night Patches
+a = 1; night_start = 15; % hard coded counter
+n = 1;
+r(a) = rectangle('Position',[(night_start) y_lims(1)...
+    9 (y_lims(2)-y_lims(1))],...
+    'FaceColor',night_color{set_token},'Edgecolor',[1 1 1]);
+uistack(r(a),'bottom'); % Send to back
+a = a + 1; night_start = night_start + 24; % Add to counters
+    
+box off; set(gca, 'Layer','top'); set(gca,'Fontsize',32); % Format
+xlabel('Time (Hours)','Fontsize',32); % X Labels 
+ylabel('Z-Score','Fontsize',32); % Y Labels
+axis([1 (n*24) y_lims]); 
