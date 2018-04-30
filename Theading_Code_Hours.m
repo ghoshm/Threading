@@ -155,7 +155,7 @@ end
 
 clear er set_token g scrap counter data 
 
-%% WT Relative Compressibility Two Way ANOVA
+%% WT Compressibility Two Way ANOVA
 dn_hour(1:14) = 1; dn_hour(15:24) = 2; dn_hour(25:38) = 3; dn_hour(39:48) = 4; 
 
 for er = 1:max(experiment_reps) % for each group of experiments
