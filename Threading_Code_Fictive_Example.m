@@ -20,6 +20,7 @@ motif_2 = {'5', '=', '1','4','4','3'};
 [grammar, compVec, totSavings] = compressSequenceNFast(vec_c,(max(vec_c)+1),(length(vec_c)-1)); 
 
 cmap_cluster = flip(lbmap(max(compVec),'RedBlue')); % generate a colormap for the clusters/motifs
+cmap_cluster(3,:) = 0.5; % replace with gray  
 
 %% Fictive Example Figure 
     % Circles & Numbers 
@@ -68,6 +69,12 @@ gscatter(1:size(vec_c3,2),zeros(size(vec_c3))-.3,vec_c3,[cmap_cluster(1,:) ; cma
 
 % Legend 
 legend off
+
+% Steps  
+% Remove repeats 
+plot([23 32],[3.85 3.85],'k','linewidth',3,'Marker','<','MarkerIndices',1,'MarkerFaceColor','k');
+plot([32 32],[3.84 4.35],'k','linewidth',3);
+text(33, sum([3.84 4.35])/2,'Remove Repeats','FontName','Calibri','Fontsize',24);
 
 %% Fictive Example Figure 
     % Circles Only  
